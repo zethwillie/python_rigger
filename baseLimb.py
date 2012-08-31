@@ -4,7 +4,7 @@ import maya.OpenMaya as om
 
 #do everything noted inside PLUS:
 #gimble controls
-#------setup for space switching on IK joints (and FK joints?)
+#------setup for space switching on IK joints (and FK joints?)(add message attrs that will link to the correct space objects, add in the offsets for the matching)
 #------setup for stretchyness, ik, fk
 #later maybe add in bendy stuff?
 #clean up and strip controls down to proper attrs
@@ -174,7 +174,6 @@ class LimbUI(object):
         self.mirrorName = cmds.textFieldGrp(self.widgets["otherMirrorTFG"], q=True, tx=True)
         self.posNeg = cmds.radioButtonGrp(self.widgets["jntSecondAxisDirRBG"], q=True, sl=True)
 
-
         #now pass these values to the Limb class - create an instance of Limb
         self.limb = Limb(self.limbName, self.prefix, self.mirror, self.mirrorAxis, self.jointSuffix, self.controlSuffix, self.groupSuffix, self.spreadTwist, self.spreadTwistLow, self.stretchy, self.numSpreadJnts, self.locVals, self.jointList, self.noFlip, self.mainAxis, self.secondaryAxis, self.straightLimb, self.mirrorName, self.posNeg)
 
@@ -234,9 +233,10 @@ class Limb(object):
         self.posNeg = posNeg
         self.jAxis1 = "" #this is the letter repr of the main axis, x, y, z
         self.rotBlendList = []
-        self.scaleBlendList = [ ]
+        self.scaleBlendList = []
         self.transBlendList = []
         self.measureAdds = []
+        self.IKSwitchesRev = []
 
     #create locator function first
     def createLocators(self):
@@ -478,6 +478,9 @@ class Limb(object):
         thisIKSwitch = rig.createControl(ikSwitchName, "diamond", self.jAxis1)
         rig.stripTransforms(thisIKSwitch)
         cmds.addAttr(thisIKSwitch, ln="FKIK", k=True, at="float", min=0, max=1, dv=0)
+        #create reverse
+        thisIKSwitchRev = cmds.shadingNode("reverse", asUtility=True, n="%s_%s_IKSwtchReverse"%(side, self.limbName))
+        cmds.connectAttr("%s.FKIK"%thisIKSwitch, "%s.inputX"%thisIKSwitchRev)
         rig.groupOrient(thisBind[2], thisIKSwitch, self.groupSuffix)
         IKSwitchGrp = cmds.listRelatives(thisIKSwitch, p=True)
         if x== 0:
@@ -486,6 +489,8 @@ class Limb(object):
             offset = 3
         cmds.xform(IKSwitchGrp, os=True, r=True, t=(0, 0, offset))
         self.IKSwitches.append(thisIKSwitch)
+        self.IKSwitchesRev.append(thisIKSwitchRev)
+
 
         #set up visibility switching from this for IK and PV controls
         #get pv parent group
@@ -589,9 +594,26 @@ class Limb(object):
         thisSwitch = self.IKSwitches[x]
         side = self.prefixList[x]
         sideRotBlendList = []
-        #sideTransBlendList = []
-#--------create a upArm blend and a low arm blend - these get transl from fK and Ik and blend from IKFK switch
-#--------these go into whereever the joints enter into the stretch bits
+        sideTransBlendList = []
+        #translate blends for creating the stretch
+        upTransBlend = rig.blendTranslate("%s_%s_upTransBlend"%(side,self.limbName), thisIK[1], thisFK[1], thisChain[1], "%s.FKIK"%thisSwitch)
+        lowTransBlend = rig.blendTranslate("%s_%s_upTransBlend"%(side,self.limbName), thisIK[2], thisFK[2], thisChain[2], "%s.FKIK"%thisSwitch)
+        cmds.disconnectAttr("%s.output"%upTransBlend, "%s.translate"%thisChain[1])
+        cmds.disconnectAttr("%s.output"%lowTransBlend, "%s.translate"%thisChain[2])
+
+        #store these blends
+        sideTransBlendList.append(upTransBlend)
+        sideTransBlendList.append(lowTransBlend)
+
+        self.transBlendList.append(sideTransBlendList)
+
+        if self.jAxis1 == "x":
+            colorAxis = "R"
+        elif self.jAxis1 == "y":
+            colorAxis = "G"
+        elif self.jAxis1 == "z":
+            colorAxis = "B"
+
 
         #for each joint (except last) setup blend color system
         #IK goes first in the blend, btw
@@ -658,8 +680,8 @@ class Limb(object):
                 upTransMult = cmds.shadingNode("multiplyDivide", asUtility=True, n="%s_%s_upSpreadTransMult"%(side, self.limbName))
                 cmds.setAttr("%s.operation"%upTransMult, 2)
                 cmds.setAttr("%s.input2X"%upTransMult, (numSpread + 1))
-                #here use measure from top measure joint!!!!!
-                cmds.connectAttr("%s.t%s"%(thisIK[1], self.jAxis1), "%s.input1X"%upTransMult)
+                #here use the input from the transblend
+                cmds.connectAttr("%s.output%s"%(upTransBlend, colorAxis), "%s.input1X"%upTransMult)
                 #hook up each new joint (and the mid joint)
                 for k in range(numSpread+1, 0, -1):
                     cmds.connectAttr("%s.outputX"%upTransMult, "%s.t%s"%(self.bindChains[x][k], self.jAxis1))
@@ -703,7 +725,7 @@ class Limb(object):
                     loTransMult = cmds.shadingNode("multiplyDivide", asUtility=True, n="%s_%s_loSpreadTransMult"%(side, self.limbName))
                     cmds.setAttr("%s.operation"%loTransMult, 2)
                     cmds.setAttr("%s.input2X"%loTransMult, (numSpread + 1))
-                    cmds.connectAttr("%s.t%s"%(thisIK[2], self.jAxis1), "%s.input1X"%loTransMult)
+                    cmds.connectAttr("%s.output%s"%(lowTransBlend, colorAxis), "%s.input1X"%loTransMult)
                     #hook up each new joint (and the mid joint)
                     for k in range(((numSpread+1)*2), numSpread+1, -1):
                         cmds.connectAttr("%s.outputX"%loTransMult, "%s.t%s"%(self.bindChains[x][k], self.jAxis1))
@@ -712,8 +734,12 @@ class Limb(object):
                     for k in range (((numSpread+1)*2), numSpread+1, -1):
                         thisJoint = self.bindChains[x][k]
                         cmds.connectAttr("%s.output%s"%(lowMult, capLet), "%s.rotate%s"%(thisJoint, capLet), force=True)
-                    #create orient constraints on the bind wrist joint to FK wrist, IK wrist, connect to IK switch/reverse?????
-                    self.bindWristConstraint = cmds.orientConstraint(self.IKCtrls[x],thisChain[(numSpread+1)*2])
+
+            #create orient constraints on the bind wrist joint to FK wrist, IK wrist, connect to IK switch/reverse?????
+            thisBindWristConstraint = cmds.orientConstraint(self.IKCtrls[x], thisFK[2], thisChain[(numSpread+1)*2])
+            cmds.connectAttr("%s.FKIK"%thisSwitch, "%s.%sW0"%(thisBindWristConstraint[0], self.IKCtrls[x]))
+            cmds.connectAttr("%s.outputX"%self.IKSwitchesRev[x], "%s.%sW1"%(thisBindWristConstraint[0], thisFK[2]))
+
         #call the finish method
         self.finishLimb(x)
 
