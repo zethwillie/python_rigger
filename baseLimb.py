@@ -7,11 +7,10 @@ import maya.OpenMaya as om
 #------setup for space switching on IK joints (and FK joints?)(add message attrs that will link to the correct space objects, add in the offsets for the matching)
 #------setup for stretchyness, ik, fk
 #later maybe add in bendy stuff?
-#clean up and strip controls down to proper attrs
 #save option to save out presets?
-#ADD A CONTROL SKELETON TO THE MIX? IK, FK --> CTRL --> BIND?
+#add a control skeleton to the mix? ik, fk --> ctrl --> bind?
 #set up rotation orders based on values from main axis etc
-#connect the two stretchy UI checkboxes? or pull the fuctions in bind joints to separate if's
+#connect the two stretchy UI checkboxes? 
 #definitely have problems mirroring from rt to lf, figure this out later (maybe only create on left?)
 #stretchy back to scaled version?????
 
@@ -77,7 +76,7 @@ class LimbUI(object):
 
         cmds.setParent(self.widgets["mainColumn"])
         #contents:
-        self.widgets["commonContentsFrame"] = cmds.frameLayout(l="2. Contents/Joint Setup", cll=True, w=320, bgc=(.0, .0, .0))
+        self.widgets["commonContentsFrame"] = cmds.frameLayout(l="2. Contents/Joint Setup", cll=True, cl=True, w=320, bgc=(.0, .0, .0))
         #check box for ik, fk, bind, twist spread, stretchy,
 #-------------fix the col width of the twist line
         self.widgets["jointOptionsCBG"] = cmds.checkBoxGrp(ncb=3, l1="spreadTwistTop", l2="stretchy", l3="spreadTwistLower", v1=True, v2=True, v3=True, cc1=self.spreadOn)
@@ -432,10 +431,13 @@ class Limb(object):
         self.IKHandles.append(IKHandle)
 
         ############ MODIFY FOR INHERITANCE ###########
-        #create a control for the ik? CUBE?
+        #create a control for the ik
         name = "%s_%s_IK_CTRL"%(side, self.limbName)
         IKCtrl = rig.createControl(name, "cube", self.jAxis1)
         self.IKCtrls.append(IKCtrl)
+
+        #strip to rotate and translate
+        rig.stripToRotateTranslate(IKCtrl)
 
         #G.O. control
         rig.groupOrient(thisChain[2], IKCtrl, self.groupSuffix)
@@ -453,8 +455,8 @@ class Limb(object):
 
         #create stretchy bits
         #create attrs
-        cmds.addAttr(IKCtrl, ln="__XTRA__", at="short", k=True)
-        cmds.setAttr("%s.__XTRA__"%IKCtrl, l=True)
+        cmds.addAttr(IKCtrl, ln="__EXTRA__", nn="__EXTRA__", at="short", k=True)
+        cmds.setAttr("%s.__EXTRA__"%IKCtrl, l=True)
         cmds.addAttr(IKCtrl, ln="autoStretch", at="float", min=0, max=1, k=True)
         cmds.addAttr(IKCtrl, ln="scaleMin", at="float", min=0.5, max=3, k=True, dv=1)
         #from measure, get final add node
@@ -469,8 +471,6 @@ class Limb(object):
         if x==1:
             ratioMult, topFactorMult, lowFactorMult, topMin, topMax, lowMin, lowMax, topClamp, lowClamp = rig.translateStretchIK(("%s_%s"%(side, self.limbName)), thisChain[0], thisChain[1], thisChain[2], "%s.output"%add, "%s.distance"%distance, IKCtrl, self.jAxis1, -1)
 
-#--------what vars do we need for bind joint scaling/translating
-#--------add "autostretch" 0/1
         self.ratioMult = ratioMult
 
         #create the ik switch (call as "diamond")
@@ -529,6 +529,9 @@ class Limb(object):
 
             cmds.xform(thisGrp, os=True, r=True, t=(0, 0, -10))
 
+            #strip control to translate
+            rig.stripToTranslate(thisPV)
+
 #------------ capture all constraints as list?
             #hook up pv
             cmds.poleVectorConstraint(thisPV, ikHandle)
@@ -558,13 +561,19 @@ class Limb(object):
             #create control
             ctrl = rig.createControl(ctrlName, "sphere", self.jAxis1)
             grpName = "%s_%s"%(ctrl,self.groupSuffix)
-#----------strip down control attrs
 
             rig.groupOrient(thisChain[i], ctrl, self.groupSuffix)
 
             #connect the joints to the controls
 #--------------catch this constraint with variable????
-            cmds.parentConstraint(ctrl, thisChain[i])
+            cmds.orientConstraint(ctrl, thisChain[i])
+
+            #deal with attrs
+            rig.stripToRotate(ctrl)
+            cmds.addAttr(ctrl, at="short", ln="__EXTRA__", nn="__EXTRA__", k=True)
+            cmds.setAttr("%s.__EXTRA__"%ctrl, l=True)
+            cmds.addAttr(ctrl, at="float", ln="stretch", dv=1, min=0.3, max=3, k=True)
+            cmds.connectAttr("%s.stretch"%ctrl, "%s.s%s"%(thisChain[i], self.jAxis1))
 
             ctrlList.append(ctrl)
             grpList.append(grpName)
@@ -613,7 +622,6 @@ class Limb(object):
             colorAxis = "G"
         elif self.jAxis1 == "z":
             colorAxis = "B"
-
 
         #for each joint (except last) setup blend color system
         #IK goes first in the blend, btw
@@ -690,7 +698,6 @@ class Limb(object):
                     thisJoint = self.bindChains[x][k]
                     cmds.connectAttr("%s.output%s"%(topMult, capLet), "%s.rotate%s"%(thisJoint, capLet), force=True)
 
-
             #do the lower joints
             if self.spreadTwistLow:
                 if numSpread == 0:
@@ -739,6 +746,8 @@ class Limb(object):
             thisBindWristConstraint = cmds.orientConstraint(self.IKCtrls[x], thisFK[2], thisChain[(numSpread+1)*2])
             cmds.connectAttr("%s.FKIK"%thisSwitch, "%s.%sW0"%(thisBindWristConstraint[0], self.IKCtrls[x]))
             cmds.connectAttr("%s.outputX"%self.IKSwitchesRev[x], "%s.%sW1"%(thisBindWristConstraint[0], thisFK[2]))
+
+#--------------Blend scale along jAxis to each of the bind joints to the correct IK, FK joints
 
         #call the finish method
         self.finishLimb(x)

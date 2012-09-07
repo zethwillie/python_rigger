@@ -78,6 +78,7 @@ def groupOrient(target='none',orig='none', group="GRP"):
     cmds.delete(oc)
     cmds.select(clear=True)
 
+#########  good ###########
 def stripToRotate(first="none", *args):
     attrs = ["tx", "ty", "tz", "sx", "sy", "sz", "visibility"]
     objs = []
@@ -85,8 +86,9 @@ def stripToRotate(first="none", *args):
         objs = getSelection()
     else:
         objs.append(first)
-        for each in args:
-            objs.append(each)
+        if args:
+            for each in args:
+                objs.append(each)
 ##    print(objs)
     for me in objs:
         for attr in attrs:
@@ -94,30 +96,37 @@ def stripToRotate(first="none", *args):
             cmds.setAttr(objAttr, lock=True, k=False)
 
 
+############ good ###########
 def stripToTranslate(first="none", *args):
+    """strips for all selected or entered as args, sets all attrs but translate to locked and hidden"""
     attrs = ["rx", "ry", "rz", "sx", "sy", "sz", "visibility"]
     objs = []
     if first=="none":
         objs = getSelection()
     else:
         objs.append(first)
-        for each in args:
-            objs.append(each)
+        if args:
+            for each in args:
+                objs.append(each)
 ##    print(objs)
     for me in objs:
         for attr in attrs:
             objAttr = me + "." + attr
             cmds.setAttr(objAttr, lock=True, k=False)
 
-def stripToRotate(first="none", *args):
+
+############ good ###########
+def stripToRotateTranslate(first="none", *args):
+    """strips for all selected or entered as args, sets all attrs but translate to locked and hidden"""
     attrs = ["sx", "sy", "sz", "visibility"]
     objs = []
     if first=="none":
         objs = getSelection()
     else:
         objs.append(first)
-        for each in args:
-            objs.append(each)
+        if args:
+            for each in args:
+                objs.append(each)
 ##    print(objs)
     for me in objs:
         for attr in attrs:
@@ -133,8 +142,9 @@ def stripTransforms(first="none", *args):
         objs = getSelection()
     else:
         objs.append(first)
-        for each in args:
-            objs.append(each)
+        if args:
+            for each in args:
+                objs.append(each)
     print(objs)
     for me in objs:
         for attr in attrs:
