@@ -5,14 +5,15 @@ import maya.OpenMaya as om
 #do everything noted inside PLUS:
 #gimble controls
 #------setup for space switching on IK joints (and FK joints?)(add message attrs that will link to the correct space objects, add in the offsets for the matching)
-#------setup for stretchyness, ik, fk
+#------setup for stretchyness, ik, fk (only needs )
 #later maybe add in bendy stuff?
 #save option to save out presets?
 #add a control skeleton to the mix? ik, fk --> ctrl --> bind?
 #set up rotation orders based on values from main axis etc
 #connect the two stretchy UI checkboxes?
 #definitely have problems mirroring from rt to lf, figure this out later (maybe only create on left?)
-#stretchy back to scaled version?????
+#stretchy back to scaled version????? stretch top, stretch bottom
+#lock knee, elbow?
 
 #PULL OUT ACTUAL BITS OF METHODS THAT DO THE THINGS I WANT TO OVERRIDE, SO I CAN JUST CALL THE METHOD AND THEN JUST OVERRIDE THE BITS THAT I WANT
 
@@ -98,7 +99,7 @@ class LimbUI(object):
 		#create frame for locator button
 		cmds.setParent(self.widgets["mainColumn"])
 		self.widgets["LocButtonFrame"] = cmds.frameLayout(l="4. Create Locs", w=320, bgc=(.0, .0, .0))
-		self.widgets["locatorButton"] = cmds.button(l="Create Locators", bgc=(.8,.5,0), w=300, h=30, c=self.callLocators)
+		self.widgets["locatorButton"] = cmds.button(l="Create Locators", bgc=(.8,.5,0), w=300, h=30, c=self.setupArgs)
 		#create frame for do it button
 		cmds.setParent(self.widgets["mainColumn"])
 		self.widgets["JointButtonFrame"] = cmds.frameLayout(l="5. Create Rig", w=320, bgc=(.0, .0, .0))
@@ -141,7 +142,7 @@ class LimbUI(object):
 		else:
 			cmds.intFieldGrp(self.widgets["numSpreadIFG"], e=True, en=False)
 
-	def callLocators(self,*args):
+	def setupArgs(self,*args):
 		#set up the variables to pass to the LimbClass?
 		self.limbName = cmds.textFieldGrp(self.widgets["limbNameTFG"], q=True, tx=True) #string
 		self.prefixRaw = cmds.radioButtonGrp(self.widgets["prefixRBG"], q=True, sl=True ) #string
@@ -177,6 +178,9 @@ class LimbUI(object):
 		self.mirrorName = cmds.textFieldGrp(self.widgets["otherMirrorTFG"], q=True, tx=True)
 		self.posNeg = cmds.radioButtonGrp(self.widgets["jntSecondAxisDirRBG"], q=True, sl=True)
 
+		self.callLocatorsGo()
+
+	def callLocatorsGo(self, *args):
 		#now pass these values to the Limb class - create an instance of Limb
 		self.limb = Limb(self.limbName, self.prefix, self.mirror, self.mirrorAxis, self.jointSuffix, self.controlSuffix, self.groupSuffix, self.spreadTwist, self.spreadTwistLow, self.stretchy, self.numSpreadJnts, self.locVals, self.jointList, self.noFlip, self.mainAxis, self.secondaryAxis, self.straightLimb, self.mirrorName, self.posNeg)
 
@@ -435,31 +439,14 @@ class Limb(object):
 		IKHandle = cmds.ikHandle(n=mainIK, sj=thisChain[0], ee=thisChain[2], sol="ikRPsolver")[0]
 		self.IKHandles.append(IKHandle)
 
-		############ MODIFY FOR INHERITANCE ###########
 		#create a control for the ik
-		name = "%s_%s_IK_CTRL"%(side, self.limbName)
-		IKCtrl = rig.createControl(name, "cube", self.jAxis1)
-		self.IKCtrls.append(IKCtrl)
-
-		#strip to rotate and translate
-		rig.stripToRotateTranslate(IKCtrl)
-
-		#G.O. control
-		rig.groupOrient(thisChain[2], IKCtrl, self.groupSuffix)
-
-		###########  MODIFY FOR INHERITANCE????? ############
-		#orient constraint wrist to control
-		cmds.orientConstraint(IKCtrl, thisChain[2])
-		###########  MODIFY FOR INHERITANCE????? ############ these might be ok, just add more to deal with foot, etc?
-		#parent ik handle to control
-		cmds.parent(IKHandle, IKCtrl)
+		IKCtrl = self.setupIKCtrl(x, IKHandle)
 
 		#call pole vector method? - pass IK name, normal or no flip
 #-----------------get argument from UI about what kind of handles
 		thisPv = self.setupPV(IKHandle, "normal", x)
 
 		#create stretchy bits
-		#create attrs
 		cmds.addAttr(IKCtrl, ln="__EXTRA__", nn="__EXTRA__", at="short", k=True)
 		cmds.setAttr("%s.__EXTRA__"%IKCtrl, l=True)
 		cmds.addAttr(IKCtrl, ln="autoStretch", at="float", min=0, max=1, k=True)
@@ -507,7 +494,32 @@ class Limb(object):
 		#pass onto the FK part of the rig
 		self.setupFK(x)
 
-	def setupPV(self, ikHandle, type, x):
+
+	def setupIKCtrl(self, x, IKHandle):
+
+		############# MODIFY FOR INHERITANCE  #############
+		side = self.prefixList[x]
+		thisChain = self.IKChains[x]
+
+		#create a control for the ik
+		name = "%s_%s_IK_CTRL"%(side, self.limbName)
+		IKCtrl = rig.createControl(name, "cube", self.jAxis1)
+		self.IKCtrls.append(IKCtrl)
+		#strip to rotate and translate
+		rig.stripToRotateTranslate(IKCtrl)
+
+		#G.O. control
+		rig.groupOrient(thisChain[2], IKCtrl, self.groupSuffix)
+
+		#orient constraint joint 2 (wrist ankle) to control
+		cmds.orientConstraint(IKCtrl, thisChain[2])
+	
+		#parent ik handle to control
+		cmds.parent(IKHandle, IKCtrl)
+
+		return IKCtrl
+
+	def setupPV(self, IKHandle, type, x):
 		"""type can be "normal" (a control) or "noFlip" with hidden control and twist attribute. add to self.PVList """
 		#set values for this chain, side
 		thisChain = self.IKChains[x]
@@ -539,7 +551,7 @@ class Limb(object):
 
 #------------ capture all constraints as list?
 			#hook up pv
-			cmds.poleVectorConstraint(thisPV, ikHandle)
+			cmds.poleVectorConstraint(thisPV, IKHandle)
 
 			#add pv to list
 			self.PVList.append(thisPV)
@@ -612,8 +624,11 @@ class Limb(object):
 		#translate blends for creating the stretch
 		upTransBlend = rig.blendTranslate("%s_%s_upTransBlend"%(side,self.limbName), thisIK[1], thisFK[1], thisChain[1], "%s.FKIK"%thisSwitch)
 		lowTransBlend = rig.blendTranslate("%s_%s_upTransBlend"%(side,self.limbName), thisIK[2], thisFK[2], thisChain[2], "%s.FKIK"%thisSwitch)
-		cmds.disconnectAttr("%s.output"%upTransBlend, "%s.translate"%thisChain[1])
-		cmds.disconnectAttr("%s.output"%lowTransBlend, "%s.translate"%thisChain[2])
+		
+
+		if self.spreadTwist:
+			cmds.disconnectAttr("%s.output"%upTransBlend, "%s.translate"%thisChain[1])
+			cmds.disconnectAttr("%s.output"%lowTransBlend, "%s.translate"%thisChain[2])
 
 		#store these blends
 		sideTransBlendList.append(upTransBlend)
@@ -642,12 +657,11 @@ class Limb(object):
 
 		self.rotBlendList.append(sideRotBlendList)
 
-		#blend translations of the joints too???
 		#blend scales too?
 
 		#deal with spread joints here
-#--------------if there are no spread joints then STILL need to connect the translates. . .
 		numSpread = self.numSpreadJnts
+
 		if self.spreadTwist:
 			if numSpread == 0:
 				pass
@@ -672,6 +686,7 @@ class Limb(object):
 				#dupe the top joint numSpread number of times
 				for i in range(numSpread):
 #---------------get this name right side_chain_joint_"twist"num_JNT
+					#here pull apart top jnt name (strip JNT)
 					twistName = "%s_twist%i"%(topJnt,(i+1))
 					cmds.duplicate(topJnt, n=twistName)
 					#add twist to bind chain
@@ -748,10 +763,13 @@ class Limb(object):
 						thisJoint = self.bindChains[x][k]
 						cmds.connectAttr("%s.output%s"%(lowMult, capLet), "%s.rotate%s"%(thisJoint, capLet), force=True)
 
-			#create orient constraints on the bind wrist joint to FK wrist, IK wrist, connect to IK switch/reverse?????
-			thisBindWristConstraint = cmds.orientConstraint(self.IKCtrls[x], thisFK[2], thisChain[(numSpread+1)*2])
-			cmds.connectAttr("%s.FKIK"%thisSwitch, "%s.%sW0"%(thisBindWristConstraint[0], self.IKCtrls[x]))
-			cmds.connectAttr("%s.outputX"%self.IKSwitchesRev[x], "%s.%sW1"%(thisBindWristConstraint[0], thisFK[2]))
+		else:
+			numSpread = 0
+
+		#create orient constraints on the bind wrist joint to FK wrist, IK wrist, connect to IK switch/reverse?????
+		thisBindWristConstraint = cmds.orientConstraint(self.IKCtrls[x], thisFK[2], thisChain[(numSpread+1)*2])
+		cmds.connectAttr("%s.FKIK"%thisSwitch, "%s.%sW0"%(thisBindWristConstraint[0], self.IKCtrls[x]))
+		cmds.connectAttr("%s.outputX"%self.IKSwitchesRev[x], "%s.%sW1"%(thisBindWristConstraint[0], thisFK[2]))
 
 #--------------Blend scale along jAxis to each of the bind joints to the correct IK, FK joints
 
@@ -802,6 +820,8 @@ class Limb(object):
 
 		# if x== 0:
 		#     cmds.delete(self.locList[0])
+
+#---------------addd some stuff for setting up IK snapping and matching, message attrs
 
 ##########  here is where to add methods for feet, hands, bendy, etc ##############
 
