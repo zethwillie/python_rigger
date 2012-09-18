@@ -12,7 +12,7 @@ import maya.OpenMaya as om
 #set up rotation orders based on values from main axis etc
 #connect the two stretchy UI checkboxes?
 #definitely have problems mirroring from rt to lf, figure this out later (maybe only create on left?)
-#stretchy back to scaled version????? stretch top, stretch bottom
+#STRETCHY BACK TO SCALED VERSION????? STRETCH TOP, STRETCH BOTTOM
 #lock knee, elbow?
 
 #PULL OUT ACTUAL BITS OF METHODS THAT DO THE THINGS I WANT TO OVERRIDE, SO I CAN JUST CALL THE METHOD AND THEN JUST OVERRIDE THE BITS THAT I WANT
@@ -624,7 +624,8 @@ class Limb(object):
 		#translate blends for creating the stretch
 		upTransBlend = rig.blendTranslate("%s_%s_upTransBlend"%(side,self.limbName), thisIK[1], thisFK[1], thisChain[1], "%s.FKIK"%thisSwitch)
 		lowTransBlend = rig.blendTranslate("%s_%s_upTransBlend"%(side,self.limbName), thisIK[2], thisFK[2], thisChain[2], "%s.FKIK"%thisSwitch)
-		
+		#upScaleBlend = rig.blendScale("%s_%s_upScaleBlend"%(side,self.limbName), thisIK[1], thisFK[1], thisChain[1], "%s.FKIK"%thisSwitch)
+		#upScaleBlend = rig.blendScale("%s_%s_upScaleBlend"%(side,self.limbName), thisIK[1], thisFK[1], thisChain[1], "%s.FKIK"%thisSwitch)
 
 		if self.spreadTwist:
 			cmds.disconnectAttr("%s.output"%upTransBlend, "%s.translate"%thisChain[1])
@@ -772,6 +773,9 @@ class Limb(object):
 		cmds.connectAttr("%s.outputX"%self.IKSwitchesRev[x], "%s.%sW1"%(thisBindWristConstraint[0], thisFK[2]))
 
 #--------------Blend scale along jAxis to each of the bind joints to the correct IK, FK joints
+
+
+
 
 		#call the finish method
 		self.finishLimb(x)
