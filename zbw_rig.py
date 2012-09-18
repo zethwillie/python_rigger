@@ -377,6 +377,48 @@ def measureDistance(mName="none", *args):
 	cmds.select(clear=True)
 	return(dist)
 
+#############  good ##############
+def scaleStretchIK(limbName, ikTop, ikMid, ikLow, jntMeasure, IKMeasure, IKCtrl, axis, *args):
+	"""creates a stretch setup for 3 joint IK chain. Inputs (strings) are the limbName, 3 ik joints (top to bottom), the measure input for the whole chain (add up from measure joints), the measure for the ikCtrl, the ik handle or ctrl (which must have 'scaleMin', 'upScale' and 'lowScale' attrs, the axis letter. Returns . . . """
+
+	ratioMult = cmds.shadingNode("multiplyDivide", asUtility=True, n="%s_stretchRatioMult"%limbName)
+	cmds.setAttr(ratioMult + ".operation", 2)
+	cmds.connectAttr(jntMeasure, "%s.input2X"%ratioMult)
+	cmds.connectAttr(IKMeasure, "%s.input1X"%ratioMult)
+
+	#could put this default stuff (next two paragraphs) after the conditional and use another conditional so that minScale is bundled up in "autostretch"
+	#create default setting of 1 when autostretch is off
+	defaultMult = cmds.shadingNode("multiplyDivide", asUtility=True, n="%s_stretchDefaultMult"%limbName)
+	cmds.setAttr("%s.input1X"%defaultMult, 1)
+
+	#create blend node to blend ratio mult and default values, based on blender attr of ikctrl.autoStretch
+	defaultBlend = cmds.shadingNode("blendColors", asUtility=True, n="%s_stretchBlend")
+	cmds.connectAttr("%s.outputX"%defaultMult, "%s.color2R"%defaultBlend)
+	cmds.connectAttr("%s.outputX"%ratioMult, "%s.color1R"%defaultBlend)
+	cmds.connectAttr("%s.autoStretch"%IKCtrl, "%s.blender"%defaultBlend)
+
+	#blend goes into condition node - firstTerm, secondTerm=ikctrl scaleMin value, operation=2(greaterthan), colorIfTrue is blend, colorIfFalse is scaleMin attr
+	conditional = cmds.shadingNode("condition", asUtility=True, n="%s_upStretchCondition"%limbName)
+	cmds.setAttr("%s.operation"%conditional, 2)
+	cmds.connectAttr("%s.outputR"%defaultBlend, "%s.firstTerm"%conditional)
+	cmds.connectAttr("%s.scaleMin"%IKCtrl, "%s.secondTerm"%conditional)
+	cmds.connectAttr("%s.outputR"%defaultBlend, "%s.colorIfTrueR"%conditional)
+	cmds.connectAttr("%s.scaleMin"%IKCtrl, "%s.colorIfFalseR"%conditional)
+
+	#factor in the upScale/lowScale attrs
+	upScaleMult = cmds.shadingNode('multiplyDivide', asUtility=True, n="%s_upScaleMult"%limbName)
+	cmds.connectAttr("%s.outColorR"%conditional, "%s.input1X"%upScaleMult)
+	cmds.connectAttr("%s.upScale"%IKCtrl, "%s.input2X"%upScaleMult)
+	loScaleMult = cmds.shadingNode('multiplyDivide', asUtility=True, n="%s_loScaleMult"%limbName)
+	cmds.connectAttr("%s.outColorR"%conditional, "%s.input1X"%loScaleMult)
+	cmds.connectAttr("%s.lowScale"%IKCtrl, "%s.input2X"%loScaleMult)
+
+	#hook up the scales of the joints
+	cmds.connectAttr("%s.outputX"%upScaleMult, "%s.s%s"%(ikTop, axis))
+	cmds.connectAttr("%s.outputX"%loScaleMult, "%s.s%s"%(ikMid, axis))
+
+	return(ratioMult, defaultMult, defaultBlend, conditional, upScaleMult, loScaleMult)
+
 ######### good ###########
 def translateStretchIK(limbName, ikTop, ikMid, ikLow, jntMeasure, IKMeasure, IKCtrl, axis, posNeg, *args):
 	"""creates a stretch setup for 3 joint IK chain. Inputs (strings) are the limbName, 3 ik joints (top to bottom), the measure input for the whole chain (add up from measure joints?), the measure for the ikCtrl, the ik handle or ctrl (which must have 'scaleMin' attr, the axis letter, and PosNeg, which is +1 or -1 (minus for things in negative direction/mirror). Returns . . . """
