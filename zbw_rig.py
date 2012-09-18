@@ -487,9 +487,9 @@ def makePlane(*args):
 	cmds.polyCreateFacetCtx(pc=False)
 	sel = cmds.ls(sl=True, type="transform")
 	for obj in sel:
-	loc = cmds.pointPosition((obj + ".rotatePivot"), world=True)
-	points.append(loc)
-	poly = cmds.polyCreateFacet(p=points)
+		loc = cmds.pointPosition((obj + ".rotatePivot"), world=True)
+		points.append(loc)
+		poly = cmds.polyCreateFacet(p=points)
 ##    try to figure out if theyre planar or not, give warning?
 
 
