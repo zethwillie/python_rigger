@@ -392,7 +392,7 @@ def scaleStretchIK(limbName, ikTop, ikMid, ikLow, jntMeasure, IKMeasure, IKCtrl,
 	cmds.setAttr("%s.input1X"%defaultMult, 1)
 
 	#create blend node to blend ratio mult and default values, based on blender attr of ikctrl.autoStretch
-	defaultBlend = cmds.shadingNode("blendColors", asUtility=True, n="%s_stretchBlend")
+	defaultBlend = cmds.shadingNode("blendColors", asUtility=True, n="%s_stretchBlend"%limbName)
 	cmds.connectAttr("%s.outputX"%defaultMult, "%s.color2R"%defaultBlend)
 	cmds.connectAttr("%s.outputX"%ratioMult, "%s.color1R"%defaultBlend)
 	cmds.connectAttr("%s.autoStretch"%IKCtrl, "%s.blender"%defaultBlend)
