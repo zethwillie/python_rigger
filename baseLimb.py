@@ -12,7 +12,6 @@ import maya.OpenMaya as om
 #set up rotation orders based on values from main axis etc
 #connect the two stretchy UI checkboxes?
 #definitely have problems mirroring from rt to lf, figure this out later (maybe only create on left?)
-#STRETCHY BACK TO SCALED VERSION????? STRETCH TOP, STRETCH BOTTOM
 #lock knee, elbow?
 
 #PULL OUT ACTUAL BITS OF METHODS THAT DO THE THINGS I WANT TO OVERRIDE, SO I CAN JUST CALL THE METHOD AND THEN JUST OVERRIDE THE BITS THAT I WANT
@@ -458,9 +457,11 @@ class Limb(object):
 		#from measure, get final add node
 		add = self.measureAdds[x]
 		#create mult node, put add into input 2, set to divide!
+#---------orient the IK wrist to the control? do it here or elsewhere (for inheritance?)
+		cmds.orientConstraint(IKCtrl, thisChain[2])
 
 		#create distance node from thigh to ctrl
-		distance = rig.measureDistance("%s_%s_ikCtrlDistance"%(side, self.limbName), self.bindChains[x][0], IKCtrl)
+		distance = rig.measureDistance("%s_%s_ikCtrlDistance"%(side, self.limbName), self.measureChains[x][0], IKCtrl)
 
 		ratioMult, defaultMult, defaultBlend, conditional, upScaleMult, loScaleMult = rig.scaleStretchIK(("%s_%s"%(side, self.limbName)), thisChain[0], thisChain[1], thisChain[2], "%s.output"%add, "%s.distance"%distance, IKCtrl, self.jAxis1)
 
@@ -513,7 +514,7 @@ class Limb(object):
 
 		#orient constraint joint 2 (wrist ankle) to control
 		cmds.orientConstraint(IKCtrl, thisChain[2])
-	
+
 		#parent ik handle to control
 		cmds.parent(IKHandle, IKCtrl)
 
@@ -630,8 +631,6 @@ class Limb(object):
 			cmds.disconnectAttr("%s.output"%lowScaleBlend, "%s.scale"%thisChain[1])
 
 		#store these blends
-		#sideTransBlendList.append(upTransBlend)
-		#sideTransBlendList.append(lowTransBlend)
 		sideScaleBlendList.append(upScaleBlend)
 		sideScaleBlendList.append(lowScaleBlend)
 
@@ -704,13 +703,6 @@ class Limb(object):
 					parent = self.bindChains[x][j-1]
 					cmds.parent(child, parent)
 
-				# #########get ratios!!!! for scaling
-
-				# #create mult for scale, get the base scale value (of the main IK jnt), divide that
-				# upScaleMult = cmds.shadingNode("multiplyDivide", asUtility=True, n="%s_%s_upSpreadScaleMult"%(side, self.limbName))
-				# cmds.setAttr("%s.operation"%upScaleMult, 2)
-				# cmds.setAttr("%s.input2X"%upScaleMult, (numSpread + 1))
-				# cmds.connectAttr("%s.output%s"%(upScaleBlend, colorAxis), "%s.input1X"%upScaleMult)
 				#hook up each new joint (and the mid joint)
 				for k in range(numSpread, -1, -1):
 					cmds.connectAttr("%s.s%s"%(thisIK[0], self.jAxis1), "%s.s%s"%(self.bindChains[x][k], self.jAxis1))
@@ -725,9 +717,9 @@ class Limb(object):
 				if numSpread == 0:
 					pass
 				else:
-					lowMult = cmds.shadingNode("multiplyDivide", n="%s_lowRot_mult"%lowJnt, asUtility=True)
-					cmds.setAttr("%s.input2"%lowMult, factor, factor, factor)
-					cmds.connectAttr("%s.output"%self.rotBlendList[x][2], "%s.input1"%lowMult)
+					lowRotMult = cmds.shadingNode("multiplyDivide", n="%s_lowRot_mult"%lowJnt, asUtility=True)
+					cmds.setAttr("%s.input2"%lowRotMult, factor, factor, factor)
+					cmds.connectAttr("%s.output"%self.rotBlendList[x][2], "%s.input1"%lowRotMult)
 
 					cmds.parent(lowJnt, w=True)
 					for i in range(numSpread):
@@ -750,19 +742,20 @@ class Limb(object):
 						parent = self.bindChains[x][j-1]
 						cmds.parent(child, parent)
 
-					# #create mult for translation, get the base transl value (of the main IK jnt), divide that
-					# loScaleMult = cmds.shadingNode("multiplyDivide", asUtility=True, n="%s_%s_loSpreadScaleMult"%(side, self.limbName))
-					# cmds.setAttr("%s.operation"%loScaleMult, 2)
-					# cmds.setAttr("%s.input2X"%loScaleMult, (numSpread + 1))
-					# cmds.connectAttr("%s.output%s"%(lowScaleBlend, colorAxis), "%s.input1X"%loScaleMult)
+					#force inverse scale (for some reason they're not connected in lower twists)
+					for a in range(numSpread+1, (numSpread*2)+1):
+						parent = self.bindChains[x][a]
+						child = self.bindChains[x][a+1]
+						cmds.connectAttr("%s.scale"%parent, "%s.inverseScale"%child, f=True)
+
 					#scale joints (and mid joint)
-					for k in range((((numSpread+1)*2)-1), numSpread, -1):
+					for k in range(numSpread*2+1, numSpread, -1):
 						cmds.connectAttr("%s.s%s"%(thisIK[1], self.jAxis1), "%s.s%s"%(self.bindChains[x][k], self.jAxis1))
 
 					#do rotations
 					for k in range (((numSpread+1)*2), numSpread+1, -1):
 						thisJoint = self.bindChains[x][k]
-						cmds.connectAttr("%s.output%s"%(lowMult, capLet), "%s.rotate%s"%(thisJoint, capLet), force=True)
+						cmds.connectAttr("%s.output%s"%(lowRotMult, capLet), "%s.rotate%s"%(thisJoint, capLet), force=True)
 
 		else:
 			numSpread = 0
