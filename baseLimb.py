@@ -513,7 +513,7 @@ class Limb(object):
 
 		#orient constraint joint 2 (wrist ankle) to control
 		cmds.orientConstraint(IKCtrl, thisChain[2])
-	
+
 		#parent ik handle to control
 		cmds.parent(IKHandle, IKCtrl)
 
