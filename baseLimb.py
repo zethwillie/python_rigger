@@ -4,15 +4,17 @@ import maya.OpenMaya as om
 
 #do everything noted inside PLUS:
 #gimble controls
-#------setup for space switching on IK joints (and FK joints?)(add message attrs that will link to the correct space objects, add in the offsets for the matching)
-#------setup for stretchyness, ik, fk (only needs )
+#------setup for space switching on IK joints (and FK joints?)(add in the offsets for the matching)
+#------fix the order of the upStretch, lowStretch - - - work that before before the bend. . .
 #later maybe add in bendy stuff?
 #save option to save out presets?
-#add a control skeleton to the mix? ik, fk --> ctrl --> bind?
+#add a control skeleton to the mix? ik, fk --> ctrl --> bind? that way we can get rid of the bind if we want to use a ribbon or some other setup instead. . . .
 #set up rotation orders based on values from main axis etc
 #connect the two stretchy UI checkboxes?
 #definitely have problems mirroring from rt to lf, figure this out later (maybe only create on left?)
 #lock knee, elbow?
+
+#----------fk controls get parent constraint, so you can translate them if you want to? will this move all the joints or only the ones (get rid of stretch?), then should I blend the translations too?
 
 #PULL OUT ACTUAL BITS OF METHODS THAT DO THE THINGS I WANT TO OVERRIDE, SO I CAN JUST CALL THE METHOD AND THEN JUST OVERRIDE THE BITS THAT I WANT
 
@@ -456,8 +458,8 @@ class Limb(object):
 
 		#from measure, get final add node
 		add = self.measureAdds[x]
-		#create mult node, put add into input 2, set to divide!
-#---------orient the IK wrist to the control? do it here or elsewhere (for inheritance?)
+
+		#orient the IK wrist to the control? do it here or elsewhere (for inheritance?)
 		cmds.orientConstraint(IKCtrl, thisChain[2])
 
 		#create distance node from thigh to ctrl
@@ -467,7 +469,10 @@ class Limb(object):
 
 		#create the ik switch (call as "diamond")
 		ikSwitchName = "%s_%s_FKIKSwitch"%(side, self.limbName)
-		thisIKSwitch = rig.createControl(ikSwitchName, "diamond", self.jAxis1)
+		if x == 0:
+			thisIKSwitch = rig.createControl(ikSwitchName, "diamond", self.jAxis1, "lightBlue")
+		if x == 1:
+			thisIKSwitch = rig.createControl(ikSwitchName, "diamond", self.jAxis1, "pink")
 		rig.stripTransforms(thisIKSwitch)
 		cmds.addAttr(thisIKSwitch, ln="FKIK", k=True, at="float", min=0, max=1, dv=0)
 		#create reverse
@@ -475,12 +480,12 @@ class Limb(object):
 		cmds.connectAttr("%s.FKIK"%thisIKSwitch, "%s.inputX"%thisIKSwitchRev)
 		rig.groupOrient(thisBind[2], thisIKSwitch, self.groupSuffix)
 		IKSwitchGrp = cmds.listRelatives(thisIKSwitch, p=True)
+
+		#do stuff here to push the IKFK switch in the right direction
 		if x== 0:
 			offset = -3
 		if x==1:
 			offset = 3
-
-#---------------so stuff here to push the IKFK switch in the right direction (if statements)
 		cmds.xform(IKSwitchGrp, os=True, r=True, t=(0, 0, offset))
 		self.IKSwitches.append(thisIKSwitch)
 		self.IKSwitchesRev.append(thisIKSwitchRev)
@@ -495,7 +500,6 @@ class Limb(object):
 		#pass onto the FK part of the rig
 		self.setupFK(x)
 
-
 	def setupIKCtrl(self, x, IKHandle):
 
 		############# MODIFY FOR INHERITANCE  #############
@@ -504,7 +508,10 @@ class Limb(object):
 
 		#create a control for the ik
 		name = "%s_%s_IK_CTRL"%(side, self.limbName)
-		IKCtrl = rig.createControl(name, "cube", self.jAxis1)
+		if x==0:
+			IKCtrl = rig.createControl(name, "cube", self.jAxis1, "blue")
+		if x==1:
+			IKCtrl = rig.createControl(name, "cube", self.jAxis1, "red")
 		self.IKCtrls.append(IKCtrl)
 		#strip to rotate and translate
 		rig.stripToRotateTranslate(IKCtrl)
@@ -529,7 +536,10 @@ class Limb(object):
 		pv = "%s_%s_PV"%(side, self.limbName)
 
 		if type == "normal":
-			thisPV = rig.createControl(pv, "sphere", self.jAxis1)
+			if x==0:
+				thisPV = rig.createControl(pv, "sphere", self.jAxis1, "darkBlue")
+			if x==1:
+				thisPV = rig.createControl(pv, "sphere", self.jAxis1, "darkRed")
 			thisGrp = cmds.group(pv, n="%s_%s"%(pv,self.groupSuffix))
 
 			#get pos of joints 0 and 2 to position pv group
@@ -550,7 +560,7 @@ class Limb(object):
 			#strip control to translate
 			rig.stripToTranslate(thisPV)
 
-#------------ capture all constraints as list?
+#-----------capture all constraints as list?
 			#hook up pv
 			cmds.poleVectorConstraint(thisPV, IKHandle)
 
@@ -577,17 +587,21 @@ class Limb(object):
 			ctrlName = (thisChain[i].rstrip(self.jointSuffix) + self.controlSuffix)
 
 			#create control
-			ctrl = rig.createControl(ctrlName, "sphere", self.jAxis1)
+			if x==0:
+				ctrl = rig.createControl(ctrlName, "sphere", self.jAxis1, "blue")
+			if x==1:
+				ctrl = rig.createControl(ctrlName, "sphere", self.jAxis1, "red")
 			grpName = "%s_%s"%(ctrl,self.groupSuffix)
 
 			rig.groupOrient(thisChain[i], ctrl, self.groupSuffix)
 
 			#connect the joints to the controls
-#--------------catch this constraint with variable????
-			cmds.orientConstraint(ctrl, thisChain[i])
+#-----------catch this constraint with variable????
+			cmds.parentConstraint(ctrl, thisChain[i])
 
 			#deal with attrs
-			rig.stripToRotate(ctrl)
+			rig.stripToRotateTranslate(ctrl)
+			rig.lockTranslate(ctrl)
 			cmds.addAttr(ctrl, at="short", ln="__EXTRA__", nn="__EXTRA__", k=True)
 			cmds.setAttr("%s.__EXTRA__"%ctrl, l=True)
 			cmds.addAttr(ctrl, at="float", ln="stretch", dv=1, min=0.3, max=3, k=True)
@@ -649,7 +663,7 @@ class Limb(object):
 			ikJnt = thisIK[i]
 			fkJnt = thisFK[i]
 			bindJnt = thisChain[i]
-			name = "%s_%s_blendRot"%(side,self.jointList[i])
+			name = "%s_%s_%s_blendRot"%(side, self.limbName, self.jointList[i])
 
 			thisRotBlend = rig.blendRotation(name, ikJnt, fkJnt, bindJnt, "%s.FKIK"%thisSwitch)
 
@@ -659,7 +673,7 @@ class Limb(object):
 
 		#deal with spread joints here
 		numSpread = self.numSpreadJnts
-
+#----------NOW I NEED TO ADD BACK IN THE TRANSLATION BLENDS/SPREADS FOR ALL AXES
 		if self.spreadTwist:
 			if numSpread == 0:
 				pass
@@ -705,7 +719,7 @@ class Limb(object):
 
 				#hook up each new joint (and the mid joint)
 				for k in range(numSpread, -1, -1):
-					cmds.connectAttr("%s.s%s"%(thisIK[0], self.jAxis1), "%s.s%s"%(self.bindChains[x][k], self.jAxis1))
+					cmds.connectAttr("%s.output%s"%(upScaleBlend, colorAxis), "%s.s%s"%(self.bindChains[x][k], self.jAxis1))
 
 				#do rotations
 				for k in range (numSpread, -1, -1):
@@ -723,7 +737,7 @@ class Limb(object):
 
 					cmds.parent(lowJnt, w=True)
 					for i in range(numSpread):
-	#---------------get this name right side_chain_joint_"twist"num_JNT
+#---------------get this name right side_chain_joint_"twist"num_JNT
 						twistName = "%s_twist%i"%(lowJnt,(i+1))
 						cmds.duplicate(midJnt, n=twistName)
 						#add twist to bind chain
@@ -750,7 +764,7 @@ class Limb(object):
 
 					#scale joints (and mid joint)
 					for k in range(numSpread*2+1, numSpread, -1):
-						cmds.connectAttr("%s.s%s"%(thisIK[1], self.jAxis1), "%s.s%s"%(self.bindChains[x][k], self.jAxis1))
+						cmds.connectAttr("%s.output%s"%(lowScaleBlend, colorAxis), "%s.s%s"%(self.bindChains[x][k], self.jAxis1))
 
 					#do rotations
 					for k in range (((numSpread+1)*2), numSpread+1, -1):
@@ -760,15 +774,10 @@ class Limb(object):
 		else:
 			numSpread = 0
 
-		#create orient constraints on the bind wrist joint to FK wrist, IK wrist, connect to IK switch/reverse?????
+		#create orient constraints on the bind wrist joint to FK wrist, IK wrist, connect to IK switch/reverse
 		thisBindWristConstraint = cmds.orientConstraint(self.IKCtrls[x], thisFK[2], thisChain[(numSpread+1)*2])
 		cmds.connectAttr("%s.FKIK"%thisSwitch, "%s.%sW0"%(thisBindWristConstraint[0], self.IKCtrls[x]))
 		cmds.connectAttr("%s.outputX"%self.IKSwitchesRev[x], "%s.%sW1"%(thisBindWristConstraint[0], thisFK[2]))
-
-#--------------Blend scale along jAxis to each of the bind joints to the correct IK, FK joints
-
-
-
 
 		#call the finish method
 		self.finishLimb(x)
@@ -785,6 +794,15 @@ class Limb(object):
 		thisBind = self.bindChains[x]
 		thisFKCtrlsC  = self.FKCtrlChains[x]
 		thisFKGrp = cmds.listRelatives(thisFKCtrlsC[0], p=True)
+
+		messageDict = {}
+
+		#setup messageAttrs (fk2ik, ik2fk, . . . )
+		messageDict = {"fkEndJnt":thisFK[2], "fkMidJnt":thisFK[1], "fkTopJnt":thisFK[0], "ikCtrl":self.IKCtrls[x], "ikPv":self.PVList[x], "fkEndCtrl":thisFKCtrlsC[2], "fkMidCtrl":thisFKCtrlsC[1], "fkTopCtrl":thisFKCtrlsC[0], "ikTopJnt":thisIK[0], "ikMidJnt":thisIK[1], "ikEndJnt":thisIK[2]}
+
+
+		for key in messageDict.keys():
+			rig.createMessage(self.IKSwitches[x], key, messageDict[key])
 
 #--------------create gimbal controls (put vis on the IKFK switch)
 #--------------setup space switching
@@ -815,10 +833,13 @@ class Limb(object):
 
 		cmds.parent(PV, IK, switch, ikGrpName )
 
-		# if x== 0:
-		#     cmds.delete(self.locList[0])
+		if x== 0:
+			cmds.delete(self.locList[0])
+		else:
+			pass
 
-#---------------addd some stuff for setting up IK snapping and matching, message attrs
+		#HERE I SHOULD HIDE THE JOINT CHAINS EXCEPT THE BIND.
+		#PUT BIND JOINTS INTO A SET, DISPLAY LAYER, HIDE THAT LAYER, CHECK IF BOTH EXIST
 
 ##########  here is where to add methods for feet, hands, bendy, etc ##############
 
