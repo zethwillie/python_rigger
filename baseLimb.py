@@ -13,6 +13,7 @@ import maya.OpenMaya as om
 #connect the two stretchy UI checkboxes?
 #definitely have problems mirroring from rt to lf, figure this out later (maybe only create on left?)
 #lock knee, elbow?
+#----------add in offsets for feet joints for FK2IK matching
 
 #----------fk controls get parent constraint, so you can translate them if you want to? will this move all the joints or only the ones (get rid of stretch?), then should I blend the translations too?
 
