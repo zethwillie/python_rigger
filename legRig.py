@@ -3,6 +3,9 @@ import zbw_rig as rig
 from baseLimb import LimbUI
 from baseLimb import Limb
 
+#----------add in offsets for feet joints for FK2IK matching
+
+
 class LegUI(LimbUI):
 
 	def __init__(self):
