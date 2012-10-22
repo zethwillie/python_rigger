@@ -1,9 +1,22 @@
+########################
+#file: baseLimb.py
+#author: zeth willie
+#contact: zeth@catbuks.com, www.williework.blogspot.com, https://github.com/zethwillie
+#date modified: 10/5/12
+#
+#notes: base class for limb creation
+########################
+
 import maya.cmds as cmds
 import zbw_rig as rig
 import maya.OpenMaya as om
 
+
+#----------------create a CHARACTER network first? Do that in "main" character window, identify in that with message attrs what the two sides are, character name, message attrs about what limbs, etc and where they connect to
 #do everything noted inside PLUS:
 #gimble controls
+#----------------elbow lock?
+#----------------does this come from a character creator? That is, am I passing in character info
 #------setup for space switching on IK joints (and FK joints?)(add in the offsets for the matching)
 #------fix the order of the upStretch, lowStretch - - - work that before before the bend. . .
 #later maybe add in bendy stuff?
@@ -14,6 +27,10 @@ import maya.OpenMaya as om
 #definitely have problems mirroring from rt to lf, figure this out later (maybe only create on left?)
 #lock knee, elbow?
 #----------fk controls get parent constraint, so you can translate them if you want to? will this move all the joints or only the ones (get rid of stretch?), then should I blend the translations too?
+
+#----------------somewhere deal with rotation orders!!!!! (choose them here? or give options? you can link the control rot order to the joint rot order, so setting up an enum attr on the floating limb control for each of the joints (attr="Shldr_RO", vals="xyz", etc), this will link to the joint in question)
+
+#----------------create a character set of controllers, add control list into the set for easy selection
 
 #PULL OUT ACTUAL BITS OF METHODS THAT DO THE THINGS I WANT TO OVERRIDE, SO I CAN JUST CALL THE METHOD AND THEN JUST OVERRIDE THE BITS THAT I WANT
 
