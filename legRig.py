@@ -22,11 +22,11 @@ class LegUI(LimbUI):
 
 	def buildUI(self):
 
-		win = cmds.window("armWin", exists=True)
+		win = cmds.window("legWin", exists=True)
 		if win:
-			cmds.deleteUI("armWin")
+			cmds.deleteUI("legWin")
 
-		self.widgets["mainWindow"] = cmds.window("armWin", title="Arm Rig Creation Window", w=320,h=600)
+		self.widgets["mainWindow"] = cmds.window("legWin", title="Leg Rig Creation Window", w=320,h=600)
 		self.widgets["scrollLayout"] = cmds.scrollLayout(vst=20)
 
 		self.widgets["mainColumn"] = cmds.columnLayout(w=300,h=600)
