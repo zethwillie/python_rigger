@@ -791,6 +791,8 @@ class Limb(object):
 			numSpread = 0
 
 		#create orient constraints on the bind wrist joint to FK wrist, IK wrist, connect to IK switch/reverse
+
+#TO-DO----------------Make this something so that we can get offsets on both (IK ctrl, FK control, maybe use one orient constraint, and one parent with only rotation)
 		thisBindWristConstraint = cmds.orientConstraint(self.IKCtrls[x], thisFK[2], thisChain[(numSpread+1)*2])
 		cmds.connectAttr("%s.FKIK"%thisSwitch, "%s.%sW0"%(thisBindWristConstraint[0], self.IKCtrls[x]))
 		cmds.connectAttr("%s.outputX"%self.IKSwitchesRev[x], "%s.%sW1"%(thisBindWristConstraint[0], thisFK[2]))
