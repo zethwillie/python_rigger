@@ -28,6 +28,8 @@ import maya.OpenMaya as om
 #lock knee, elbow?
 #----------fk controls get parent constraint, so you can translate them if you want to? will this move all the joints or only the ones (get rid of stretch?), then should I blend the translations too?
 
+#TO-DO----------------use the length of the joints to scale the pvs and controls and stuff. . . also look into why the pvs and ikFkSwitches show up in the wrong place?
+
 #----------------somewhere deal with rotation orders!!!!! (choose them here? or give options? you can link the control rot order to the joint rot order, so setting up an enum attr on the floating limb control for each of the joints (attr="Shldr_RO", vals="xyz", etc), this will link to the joint in question)
 
 #----------------create a character set of controllers, add control list into the set for easy selection
