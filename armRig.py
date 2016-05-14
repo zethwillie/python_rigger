@@ -1,5 +1,6 @@
 import maya.cmds as cmds
 import zbw_rig as rig
+reload(rig)
 from baseLimb import LimbUI
 from baseLimb import Limb
 

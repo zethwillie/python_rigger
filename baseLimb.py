@@ -290,6 +290,7 @@ class Limb(object):
 			for k in range((len(self.locList)-1),0,-1):
 				cmds.parent(self.locList[k], self.locList[k-1])
 
+######### make this true only for the arms. . . or figure out how to extract which rot this should be
 			#rotate second joint to just get a preferred angle
 			cmds.setAttr("%s.ry"%self.locList[1], -5)
 
@@ -778,7 +779,8 @@ class Limb(object):
 					for a in range(numSpread+1, (numSpread*2)+1):
 						parent = self.bindChains[x][a]
 						child = self.bindChains[x][a+1]
-						cmds.connectAttr("%s.scale"%parent, "%s.inverseScale"%child, f=True)
+						#2016 is telling me this is already connected
+						#cmds.connectAttr("%s.scale"%parent, "%s.inverseScale"%child, f=True)
 
 					#scale joints (and mid joint)
 					for k in range(numSpread*2+1, numSpread, -1):

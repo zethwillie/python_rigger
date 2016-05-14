@@ -358,7 +358,8 @@ class Leg(Limb):
 					for a in range(numSpread+1, (numSpread*2)+1):
 						parent = self.bindChains[x][a]
 						child = self.bindChains[x][a+1]
-						cmds.connectAttr("%s.scale"%parent, "%s.inverseScale"%child, f=True)
+						#2016 is telling me this is already done
+						#cmds.connectAttr("%s.scale"%parent, "%s.inverseScale"%child, f=True)
 
 					#scale joints (and mid joint)
 					for k in range(numSpread*2+1, numSpread, -1):
