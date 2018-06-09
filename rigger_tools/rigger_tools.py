@@ -31,23 +31,11 @@ def orient_joint_to_transform(jnt, obj):
     cmds.setAttr("{0}.jointOrient".format(jnt), rot[0], rot[1], rot[2])
     cmds.parent(newChildren, jnt)
 
-# import python_rigger.rigger_tools.rigger_tools as zrt
-# reload(zrt)
-
-# jnts = ["shoulder", "elbow", "wrist"]
-# objs = ["shoulder_ORIENTposeCTRL","elbow_ORIENTposeCTRL", "wrist_ORIENTposeCTRL"]
-
-# cmds.delete(cmds.ls(type="constraint"))
-
-# for i in range(len(jnts)):
-#     zrt.orient_joint_to_transform(jnts[i], objs[i])
-    
-# cmds.delete("shoulder_poseCTRL_GRP")
-
 
 # orient the joints (freeze transforms, then orient via options)
 def orient_joint_chain(joint=None, alongAxis="xyz", upAxis="yup"):
     cmds.joint(joint, e=True, orientJoint=alongAxis, children=True, secondaryAxisOrient=upAxis, zso=True )
+
 
 # rename joint chain
 def name_object(obj, side=None, part=None, chain=None, typeSuf=None):
@@ -62,6 +50,7 @@ def get_chain_hierarchy(topJoint=None):
     cmds.select(topJoint, r=True, hi=True)
     chain = cmds.ls(sl=True)
     return(chain)
+
 
 # mirror stuff
 # mirror joint chains across given axis, with given prefixes. . .  
@@ -126,7 +115,27 @@ def create_reverse_network(name,  inputAttr, revAttr, targetAttr):
 
 
 # create controls on joints - group orient
-def create_controls_at_joints(jntList, ctrlType, axis, suffix, orient=False, upAxis="y"):
+def create_controls_at_joints(jntList, ctrlType, axis, suffix):
+    """orient will create a new control UNDER the ctrl that we can use to  orient pose joints"""
+    ctrls = []
+    groups = []
+    for jnt in jntList:
+        # pos = cmds.xform(jnt, q=True, ws=True, rp=True)
+        # rot = cmds.xform(jnt, q=True, ws=True, ro=True)
+        if "_" in jnt:
+            name = "_".join(jnt.split("_")[:-1]) + "_{0}".format(suffix)
+        else:
+            name = "{0}_{1}".format(jnt, suffix)
+        ctrl = rig.createControl(name, ctrlType, axis)
+        grp = rig.groupFreeze(ctrl)
+        rig.snapTo(jnt, grp)
+        ctrls.append(ctrl)
+        groups.append(grp)
+
+    return(ctrls, groups)
+
+
+def create_controls_and_orients_at_joints(jntList, ctrlType, axis, suffix, orient=False, upAxis="y"):
     """orient will create a new control UNDER the ctrl that we can use to  orient pose joints"""
     ctrls = []
     groups = []

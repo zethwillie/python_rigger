@@ -27,19 +27,31 @@ class BaseLimb(object):
         # if not fromUI:
         #     self.set_values_code()
 
-
+# a control on the switch that can drive the rotation order of all the things for each "part" (shldr, elbow, etc-->xyz changes all of the parts of that rig)
+# MAYBE COMBINE THOUGHTS: self.fkCtrls = {[lf_fk-Ctrls], [rt_fk_ctrls]}
     def set_values_UI(self):
         """ grab all relevant values from UI"""
         #from ui. . . 
         self.pts=[(5,20, 0),(15, 20, -1), (25, 20, 0), (27, 20, 0)]
         self.baseNames=["shoulder", "elbow", "wrist", "wristEnd"]
         self.origPrefix = "lf"
-        self.mirPrefix = "rt"
-        self.mainAxis = "x"
+        self.mirror = True
+        if self.mirror:
+            self.mirPrefix = "rt"
+        self.primaryAxis = "x"
         self.upAxis = "y"
         # below needs to be created from main axis (ie. "x")
         self.orientOrder = "xyz"
         self.upOrientAxis = "yup"
+
+        # initialize variables
+        self.fkJoints = {}
+        self.fkCtrls = {}
+        self.ikJoints = {}
+        self.ikCtrls = {}
+        self.measureJoints = {}
+        self.deformJoints = {}
+        self.switchCtrls = {}
 
         self.jntSuffix = "JNT"
         self.mirrorAxis = "yz"
@@ -59,7 +71,7 @@ class BaseLimb(object):
     # put joint in ref display layer temporarily
         self.joints = zrt.create_joint_chain(self.pts, self.baseNames, self.orientOrder, self.upOrientAxis)
 
-        self.poseCtrls, self.poseGrps, self.octrls, self.ogrps = zrt.create_controls_at_joints(self.joints[:-1], "sphere", self.mainAxis, "poseCTRL", orient=True, upAxis="y")
+        self.poseCtrls, self.poseGrps, self.octrls, self.ogrps = zrt.create_controls_and_orients_at_joints(self.joints[:-1], "sphere", self.primaryAxis, "poseCTRL", orient=True, upAxis="y")
         lockAttrs = ["s","tx", "ty", "tz"]
 
         ctrlHierList = zip(self.poseCtrls, self.poseGrps, self.joints, self.octrls, self.ogrps)
@@ -76,7 +88,7 @@ class BaseLimb(object):
                 cmds.setAttr("{0}.rz".format(ctrlHierList[i][0]), l=True)
                 cmds.setAttr("{0}.r{1}".format(ctrlHierList[i][0], self.upAxis), l=False)
 
-            cmds.setAttr("{0}.t{1}".format(ctrlHierList[i][0], self.mainAxis), l=False)
+            cmds.setAttr("{0}.t{1}".format(ctrlHierList[i][0], self.primaryAxis), l=False)
 
             oc1 = cmds.orientConstraint(self.joints[i], ctrlHierList[i][4], mo=False)
             cmds.delete(oc1)
@@ -86,12 +98,19 @@ class BaseLimb(object):
         zrt.parent_hierarchy_grouped_controls(self.poseCtrls, self.poseGrps)
 
     def make_limb_rig(self):
+        self.create_initial_components()
         self.clean_initial_joints()
         # add manual adjust joint orientation here. . .
-        self.mirror_joints()
-        self.setup_dictionary()        
+        if self.mirror:
+            self.mirror_joints()
+        self.setup_dictionaries()        
         self.create_duplicate_chains()
-        self.setup_fk_rig()
+        # self.setup_fk_rig()
+
+
+    def create_initial_components(self):
+        # create groups and hierarchy
+        pass
 
 
     def clean_initial_joints(self):
@@ -118,32 +137,37 @@ class BaseLimb(object):
         cmds.delete(self.joints[-1])
         self.joints = self.joints[:-1]
 
-        # maybe store the scale on the joint itself? Then delete it later. . . 
+    # maybe store the scale on the joint itself? Then delete it later. . . 
         for jnt in self.joints:
             name = zrt.name_object(jnt, self.origPrefix, jnt, "FK", self.jntSuffix)
             self.origFkJnts.append(name)
             
-        # set rotate orders on listed jnts
+    # set rotate orders on listed jnts
         for i in self.zyx:
             cmds.joint(self.origFkJnts[i], edit=True, rotationOrder="zyx")
 
+    # store orient data on joints for serialization. . . ?
 
     def mirror_joints(self):
-
-    # if mirror. . . 
-    # get prefixes. . . 
         self.mirrorFkJnts = zrt.mirror_joint_chain(self.origFkJnts[0], self.origPrefix, self.mirPrefix, self.mirrorAxis)
 
 
-    def setup_dictionary(self):
+    def setup_dictionaries(self):
 
         self.jntDict = {}
         self.jntDict["orig"] = {}
         self.jntDict["orig"]["fk"] = self.origFkJnts
-        if self.mirrorFkJnts:
-            self.jntDict["mir"] = {}
-            self.jntDict["mir"]["fk"] = self.mirrorFkJnts
+        
+        self.ctrlDict = {}
+        self.ctrlDict["orig"] = {}
+        self.ctrlDict["orig"]["fk"] = {}
+        self.ctrlDict
 
+        if self.mirror:
+            self.jntDict["mir"] = {}
+            self.ctrlDict["mir"] = {}            
+            self.jntDict["mir"]["fk"] = self.mirrorFkJnts
+            self.ctrlDict["mir"]["fk"] = {}
 
     def create_duplicate_chains(self):
 
@@ -166,17 +190,34 @@ class BaseLimb(object):
 
 
     def setup_fk_rig(self):
-        pass
+
+        for side in self.jntDict.keys():
+            fkJoints = self.jntDict[side]["fk"]
+
+            ctrls, grps = zrt.create_controls_at_joints(fkJoints, "cube", self.primaryAxis, "CTRL")
+            zrt.parent_hierarchy_grouped_controls(ctrls, grps)
+            self.ctrlDict[side]["fk"]["ctrls"] = ctrls
+            self.ctrlDict[side]["fk"]["grps"] = grps
+
+        # should we keep track of these constraints?
+            for i in range(len(fkJoints)):
+                pc = cmds.parentConstraint(ctrls[i], fkJoints[i])
+                sc = cmds.scaleConstraint(ctrls[i], fkJoints[i])
+        # create group for arm to go in
 
 
-    def connect_deform_joints(self):
-        # create fkik switch
+    def create_ikfk_switch(self):
         for side in self.jntDict.keys():
             targetJnt = jntDict[side]["deform"][2]
 
+            # create a star ctrl and group freeze it
+            # offset it to the side (based on scale from FK wrist ctrl)
+            # add it to ctrlDict
         pass
 
     # build FKIK switch
+    def connect_deform_joints(self):
+        pass
     # bulld FK ctrls - put into fk dict key - use zip to connect?
     # build IK ctrls - put into ik dict key (pv and ik ctrl)
     # set up IK
