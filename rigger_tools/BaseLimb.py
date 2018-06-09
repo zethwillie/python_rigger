@@ -33,6 +33,7 @@ class BaseLimb(object):
         """ grab all relevant values from UI"""
         #from ui. . . 
         self.pts=[(5,20, 0),(15, 20, -1), (25, 20, 0), (27, 20, 0)]
+        self.part = "arm"
         self.baseNames=["shoulder", "elbow", "wrist", "wristEnd"]
         self.origPrefix = "lf"
         self.mirror = True
@@ -40,15 +41,19 @@ class BaseLimb(object):
             self.mirPrefix = "rt"
         self.primaryAxis = "x"
         self.upAxis = "y"
+        self.tertiaryAxis = "z"
         # below needs to be created from main axis (ie. "x")
         self.orientOrder = "xyz"
         self.upOrientAxis = "yup"
 
         # initialize variables
+        self.side = {}
         self.fkJoints = {}
         self.fkCtrls = {}
+        self.fkCtrlGrps = {}
         self.ikJoints = {}
         self.ikCtrls = {}
+        self.ikCtrlGrps = {}
         self.measureJoints = {}
         self.deformJoints = {}
         self.switchCtrls = {}
@@ -98,6 +103,9 @@ class BaseLimb(object):
         zrt.parent_hierarchy_grouped_controls(self.poseCtrls, self.poseGrps)
 
     def make_limb_rig(self):
+        """
+        instructions to make the limb
+        """
         self.create_initial_components()
         self.clean_initial_joints()
         # add manual adjust joint orientation here. . .
@@ -105,8 +113,8 @@ class BaseLimb(object):
             self.mirror_joints()
         self.setup_dictionaries()        
         self.create_duplicate_chains()
-        # self.setup_fk_rig()
-
+        self.setup_fk_rig()
+        self.create_fkik_switch()
 
     def create_initial_components(self):
         # create groups and hierarchy
@@ -133,7 +141,7 @@ class BaseLimb(object):
         for jnt in self.joints:
             cmds.makeIdentity(jnt, apply=True)
 
-        # delete end joint and remove from lists
+# delete end joint and remove from lists (maybe don't do this? )
         cmds.delete(self.joints[-1])
         self.joints = self.joints[:-1]
 
@@ -153,51 +161,58 @@ class BaseLimb(object):
 
 
     def setup_dictionaries(self):
-
-        self.jntDict = {}
-        self.jntDict["orig"] = {}
-        self.jntDict["orig"]["fk"] = self.origFkJnts
-        
-        self.ctrlDict = {}
-        self.ctrlDict["orig"] = {}
-        self.ctrlDict["orig"]["fk"] = {}
-        self.ctrlDict
-
+        """initialize dictionaries for the actual rig content"""
+        self.side["orig"] = self.origPrefix
+        self.fkJoints["orig"] = self.origFkJnts
+        self.fkCtrls["orig"] = None
+        self.fkCtrlGrps["orig"] = None
+        self.switchCtrls["orig"] = None
         if self.mirror:
-            self.jntDict["mir"] = {}
-            self.ctrlDict["mir"] = {}            
-            self.jntDict["mir"]["fk"] = self.mirrorFkJnts
-            self.ctrlDict["mir"]["fk"] = {}
+            self.side["mir"] = self.mirPrefix
+            self.fkJoints["mir"] = self.mirrorFkJnts
+            self.fkCtrls["mir"] = None
+            self.fkCtrlGrps["mir"] = None
+            self.switchCtrls["mir"] = None
+
 
     def create_duplicate_chains(self):
-
         # for key in jntDict, make duplicates. . . (put into dictionary)
-        for side in self.jntDict.keys():
-            topJnt = self.jntDict[side]["fk"][0]
+        for side in self.fkJoints.keys():
+            topJnt = self.fkJoints[side][0] 
+            #self.jntDict[side]["fk"][0]
             
             # make deform jnts
             deforms = zrt.duplicate_and_rename_chain(topJnt, "deform")
-            self.jntDict[side]["deform"] = deforms   
+            self.deformJoints[side] = deforms
+            # self.jntDict[side]["deform"] = deforms   
             
             # if we're making IK stuff
             if self.createIK:
                 # make IK
                 iks = zrt.duplicate_and_rename_chain(topJnt, "IK")
-                self.jntDict[side]["ik"] = iks
+                self.ikJoints[side] = iks
+                # self.jntDict[side]["ik"] = iks
                 # make measure
                 measures = zrt.duplicate_and_rename_chain(topJnt, "measure")
-                self.jntDict[side]["measure"] = measures
+                self.measureJoints[side] = measures
+                # self.jntDict[side]["measure"] = measures
 
 
     def setup_fk_rig(self):
 
-        for side in self.jntDict.keys():
-            fkJoints = self.jntDict[side]["fk"]
-
-            ctrls, grps = zrt.create_controls_at_joints(fkJoints, "cube", self.primaryAxis, "CTRL")
+        for side in self.fkJoints.keys():
+            fkJoints = self.fkJoints[side]
+            ctrls = []
+            grps = []
+            for jnt in fkJoints:
+                ctrl, grp = zrt.create_control_at_joint(jnt, "cube", self.primaryAxis, "{0}_FK_{1}_CTRL".format(self.side[side], jnt.split("_")[1]))
+                ctrls.append(ctrl)
+                grps.append(grp)
             zrt.parent_hierarchy_grouped_controls(ctrls, grps)
-            self.ctrlDict[side]["fk"]["ctrls"] = ctrls
-            self.ctrlDict[side]["fk"]["grps"] = grps
+
+            #add to dictionaries
+            self.fkCtrls[side] = ctrls
+            self.fkCtrlGrps[side] = grps
 
         # should we keep track of these constraints?
             for i in range(len(fkJoints)):
@@ -206,25 +221,46 @@ class BaseLimb(object):
         # create group for arm to go in
 
 
-    def create_ikfk_switch(self):
-        for side in self.jntDict.keys():
-            targetJnt = jntDict[side]["deform"][2]
+    def create_fkik_switch(self):
+        for side in self.deformJoints.keys():
+            # this defaults to the third joint in chain
+            targetJnt = self.deformJoints[side][2]
+            ctrl, grp = zrt.create_control_at_joint([targetJnt], "star", self.primaryAxis, "{0}_{1}_IkFkSwitch_CTRL".format(self.side[side], self.part))
 
-            # create a star ctrl and group freeze it
             # offset it to the side (based on scale from FK wrist ctrl)
-            # add it to ctrlDict
+            #get scale factor
+            amt = -5
+            if self.tertiaryAxis=="x":
+                mv=(amt, 0 , 0)
+            if self.tertiaryAxis=="y":
+                mv=(0, amt, 0)
+            else:
+                mv=(0, 0, amt)
+            cmds.xform(grp, r=True, ws=True, t=mv)
+            rig.stripTransforms(ctrl)
+            cmds.addAttr(ctrl, ln="fkik", at="float", min=0.0, max=1.0, defaultValue=0.0, keyable=True)
+
+        # save this constraint?
+            pc = cmds.parentConstraint(self.deformJoints[side][2], grp, mo=True)
+
+            self.switchCtrls[side] = ctrl
+
+
+    def build_ik_rig(self):
         pass
 
-    # build FKIK switch
+
     def connect_deform_joints(self):
         pass
-    # bulld FK ctrls - put into fk dict key - use zip to connect?
     # build IK ctrls - put into ik dict key (pv and ik ctrl)
-    # set up IK
+    # set up IK - should it be translate? 
     # setup twist attributes - connect them
+
+    # option for ribbon setup in here? 
 
     #set up blends for all self.joints (traslate, rotate, scale)
 
     # package up components
 
-
+    # bind joints for QSS (different if ribbon or just twist)
+    # add option for game exportable joints QSS 

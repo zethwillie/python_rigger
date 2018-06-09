@@ -114,25 +114,14 @@ def create_reverse_network(name,  inputAttr, revAttr, targetAttr):
         cmds.connectAttr("{0}.output.outputZ".format(reverse), targetAttr)
 
 
-# create controls on joints - group orient
-def create_controls_at_joints(jntList, ctrlType, axis, suffix):
+# DO THIS FOR ONE JNT AT A TIME SO WE CAN NAME THIS
+def create_control_at_joint(jnt, ctrlType, axis, name):
     """orient will create a new control UNDER the ctrl that we can use to  orient pose joints"""
-    ctrls = []
-    groups = []
-    for jnt in jntList:
-        # pos = cmds.xform(jnt, q=True, ws=True, rp=True)
-        # rot = cmds.xform(jnt, q=True, ws=True, ro=True)
-        if "_" in jnt:
-            name = "_".join(jnt.split("_")[:-1]) + "_{0}".format(suffix)
-        else:
-            name = "{0}_{1}".format(jnt, suffix)
-        ctrl = rig.createControl(name, ctrlType, axis)
-        grp = rig.groupFreeze(ctrl)
-        rig.snapTo(jnt, grp)
-        ctrls.append(ctrl)
-        groups.append(grp)
+    ctrl = rig.createControl(name, ctrlType, axis)
+    grp = rig.groupFreeze(ctrl)
+    rig.snapTo(jnt, grp)
 
-    return(ctrls, groups)
+    return(ctrl, grp)
 
 
 def create_controls_and_orients_at_joints(jntList, ctrlType, axis, suffix, orient=False, upAxis="y"):
