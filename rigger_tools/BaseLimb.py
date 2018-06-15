@@ -334,12 +334,23 @@ class BaseLimb(object):
             cmds.connectAttr("{0}.output.outputX".format(self.loMult), "{0}.sx".format(self.ikJoints[side][1]))
 
 
-    # setup twist attributes - connect them
-        # turn off scale compensate on all the twist joints? 
+    def create_twist_extraction_rig(self):
+        # for sides:
+            # MOVE THIS PART TO RIGGERTOOLS?
+            # for up arm:
+                # create setup and get attr onto ikfk switch
+                # create twist joints
+                # add to dict
+            # for lo arm:
+                # create setup and get attr onto ikfk switch
+                # create twist joints
+                # add to dict
+            # connect twist joints into scale? or not necessary?
+        pass
 
-    # mult stretch stuff by all ik joints
+    # mult stretch stuff by all ik joints?
 
-    # add option for switch ctrl to drive the rot orders of each part (all the ctrls and joints)
+    # add attr for switch ctrl to drive the rot orders of each part (all the ctrls and joints)
 
     # option for ribbon setup in here? 
 

@@ -363,6 +363,94 @@ def create_stretch_setup(measureJnts, ikCtrl, limbName):
     # returns 2 mults go to the up/down jnts
     return(upMult2, loMult2)
 
+
+def create_twist_extractor(rotJnt, tgtCtrl, rotJntParent, reverse=True, tgtAttr=None):
+    """ 
+    tgtCtrl is the ctrl we'll drop the twist attr onto
+    tgtAttr is what to call the attr we're creating on the tgtCtrl
+    """
+    # create two locators (base, twist)
+    baseLoc = cmds.spaceLocator(name="{0}_twistBase_LOC".format(rotJnt))[0]
+    twistLoc = cmds.spaceLocator(name="{0}_twistTwist_LOC".format(rotJnt))[0]
+    cmds.parent([baseLoc, twistLoc], rotJnt)
+    cmds.setAttr("{0}.t".format(baseLoc), 0, 0, 0)
+    cmds.setAttr("{0}.r".format(baseLoc), 0, 0, 0)
+    cmds.setAttr("{0}.t".format(twistLoc), 0, 0, 0)
+    cmds.setAttr("{0}.r".format(twistLoc), 0, 0, 0)
+    # orient base to parent xform
+    cmds.orientConstraint(rotJntParent, baseLoc, mo=True)
+    # mult matrix (matrix twst into 1, world inverse base into 2)
+    multMat = cmds.shadingNode("multMatrix", asUtility=True, name="{0}_twist_multMat".format(rotJnt))
+    cmds.connectAttr("{0}.worldInverseMatrix[0]".format(baseLoc), "{0}.matrixIn[0]".format(multMat), f=True)
+    cmds.connectAttr("{0}.worldMatrix[0]".format(twistLoc), "{0}.matrixIn[1]".format(multMat), f=True)
+    # multMatrix out to decomposeMatrix
+    dm = cmds.shadingNode("decomposeMatrix", asUtility=True, name="{0}_twist_dm".format(rotJnt))
+    cmds.connectAttr("{0}.matrixSum".format(multMat), "{0}.inputMatrix".format(dm), f=True)
+    # create quatToEuler
+    qte = cmds.shadingNode("quatToEuler", asUtility=True, name="{0}_twist_qte".format(rotJnt))
+    cmds.connectAttr("{0}.outputQuat.outputQuatX".format(dm), "{0}.inputQuat.inputQuatX".format(qte))
+    cmds.connectAttr("{0}.outputQuat.outputQuatW".format(dm), "{0}.inputQuat.inputQuatW".format(qte))
+
+    if not tgtAttr:
+        tgtAttr = "{0}_twist".format(rotJnt)
+
+    attrTest = cmds.attributeQuery(tgtAttr, node=tgtCtrl, exists=True)
+    if not attrTest:
+        cmds.addAttr(tgtCtrl, ln=tgtAttr, at="float", dv=0, k=True)
+
+    #create reverse mult
+    revMult = cmds.shadingNode("multiplyDivide", asUtility=True, name="{0}_rev_mult".format(rotJnt))
+    if reverse:
+        cmds.setAttr("{0}.input2.input2X".format(revMult), -1)
+
+    cmds.connectAttr("{0}.outputRotate.outputRotateX".format(qte), "{0}.input1.input1X".format(revMult))
+    cmds.connectAttr("{0}.output.outputX".format(revMult), "{0}.{1}".format(tgtCtrl, tgtAttr))
+
+    cmds.setAttr("{0}.v".format(twistLoc), 0)
+    cmds.setAttr("{0}.v".format(baseLoc), 0)
+
+    return("{0}.{1}".format(tgtCtrl, tgtAttr))
+
+
+def create_twist_joints(numJnts, rotJnt, parentJnt, childJnt, twistAttr, baseName, primaryAxis="x", reverse=True):
+    """
+    numJnts: NOT inclusive for first and last
+    rotJnt: joint twist comes from
+    parentJnt: jnt that twist joints are dupes of and is parent of twist jnts
+    reverse: measn that twstjnt1 gets 100% and shrinks, false means it gets 0% and grows
+    twistAttr: full name.attr of twist source
+    """
+# if no child given, find it
+    num = numJnts + 2 # to account for start and end
+
+    factor = 1.0/(num-1.0)
+
+    fullDistance = cmds.getAttr("{0}.t{1}".format(childJnt, primaryAxis))
+
+    twistJnts = []
+    # create twist joints from shoulder, place them and parent to deform shoulder
+    for i in range(num):
+        dupe = cmds.duplicate(rotJnt, parentOnly=True, name="{0}_twist{1}_JNT".format(baseName, i))[0]
+        twistJnts.append(dupe)
+        cmds.parent(dupe, parentJnt)
+        shrink = 1-(factor*i)
+        grow = factor*i
+        cmds.setAttr("{0}.t{1}".format(dupe, primaryAxis), fullDistance*grow)
+
+    # figure out how to do this with the fewest possible mult nodes
+        mult = cmds.shadingNode("multiplyDivide", asUtility=True, name="{0}_twst{1}_mult".format(baseName, i))
+        if reverse:
+            cmds.setAttr("{0}.input2.input2X".format(mult), -shrink)
+        else:
+            cmds.setAttr("{0}.input2.input2X".format(mult), grow)
+
+        cmds.connectAttr(twistAttr, "{0}.input1.input1X".format(mult))
+        cmds.connectAttr("{0}.output.outputX".format(mult), "{0}.r{1}".format(dupe, primaryAxis))
+
+        twistJnts.append(dupe)
+
+    return(twistJnts)
+
 # hook controls vis into swtich
 
 # setup stretch (measure jtns, ik jnts, ik ctrl)
