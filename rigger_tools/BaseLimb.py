@@ -79,40 +79,13 @@ class BaseLimb(object):
     def pose_initial_joints(self):
     # get and pass values for orient order and uporient axis
     # put joint in ref display layer temporarily
-        self.joints = zrt.create_joint_chain(self.pts, self.baseNames, self.orientOrder, self.upOrientAxis)
+        self.joints, self.poseCtrls, self.poseGrps, self.octrls, self.ogrps, self.poseConstraints = zrt.initial_pose_joints(ptsList=self.pts, baseNames=self.baseNames, orientOrder=self.orientOrder, upOrientAxis=self.upOrientAxis, primaryAxis=self.primaryAxis, upAxis=self.upAxis)
+
         # put tmp joints in a display layer and set to reference
         cmds.select(self.joints, r=True)
         self.dl = cmds.createDisplayLayer(name="tmp_{0}_jnt_DL".format(self.part))
         cmds.setAttr("{0}.displayType".format(self.dl), 2)
 
-        self.poseCtrls, self.poseGrps, self.octrls, self.ogrps = zrt.create_controls_and_orients_at_joints(self.joints[:-1], "sphere", self.primaryAxis, "poseCTRL", orient=True, upAxis="y")
-        lockAttrs = ["s","tx", "ty", "tz"]
-
-        ctrlHierList = zip(self.poseCtrls, self.poseGrps, self.joints, self.octrls, self.ogrps)
-        self.poseConstraints = []
-        for i in range(len(ctrlHierList)):
-            if i>0:
-                oc = cmds.orientConstraint(ctrlHierList[i-1][2], ctrlHierList[i][1], mo=False)[0]
-                self.poseConstraints.append(oc)
-            for attr in lockAttrs:
-                cmds.setAttr("{0}.{1}".format(ctrlHierList[i][0], attr), l=True)
-            if i==1:
-                cmds.setAttr("{0}.rx".format(ctrlHierList[i][0]), l=True)
-                cmds.setAttr("{0}.ry".format(ctrlHierList[i][0]), l=True)
-                cmds.setAttr("{0}.rz".format(ctrlHierList[i][0]), l=True)
-                cmds.setAttr("{0}.r{1}".format(ctrlHierList[i][0], self.upAxis), l=False)
-            if i==0:
-                cmds.setAttr("{0}.tx".format(ctrlHierList[i][0]), l=False)
-                cmds.setAttr("{0}.ty".format(ctrlHierList[i][0]), l=False)
-                cmds.setAttr("{0}.tz".format(ctrlHierList[i][0]), l=False)
-            # cmds.setAttr("{0}.t{1}".format(ctrlHierList[i][0], self.primaryAxis), l=False)
-
-            oc1 = cmds.orientConstraint(self.joints[i], ctrlHierList[i][4], mo=False)
-            cmds.delete(oc1)
-            const = cmds.parentConstraint(ctrlHierList[i][0], ctrlHierList[i][2], mo=True)[0]
-            self.poseConstraints.append(const)
-
-        zrt.parent_hierarchy_grouped_controls(self.poseCtrls, self.poseGrps)
 
     def make_limb_rig(self):
         """
@@ -137,38 +110,15 @@ class BaseLimb(object):
 
 
     def clean_initial_joints(self):
-
-        # delete display layer
         cmds.delete(self.dl)
 
-        cmds.delete(self.poseConstraints)
-        # unlock octrl attrs
-        attrs = ["t", "rx", "ry", "rz"]
-        for i in range(len(self.octrls)):
-            for attr in attrs:
-                cmds.setAttr("{0}.{1}".format(self.octrls[i], attr), l=False)
-            zrt.orient_joint_to_transform(self.joints[i], self.octrls[i])
+        self.origFkJnts = zrt.clean_pose_joints(self.joints, self.poseConstraints, self.octrls, self.poseGrps[0], self.origPrefix, self.jntSuffix, deleteEnd=True)
 
-    # save scale info from ctrls - still need to make a scalable control
-        cmds.delete(self.poseGrps[0])
-
-        for jnt in self.joints:
-            cmds.makeIdentity(jnt, apply=True)
-
-# delete end joint and remove from lists (maybe don't do this? )
-        cmds.delete(self.joints[-1])
-        self.joints = self.joints[:-1]
-
-    # maybe store the scale on the joint itself? Then delete it later. . . 
-        for jnt in self.joints:
-            name = zrt.name_object(jnt, self.origPrefix, jnt, "FK", self.jntSuffix)
-            self.origFkJnts.append(name)
-            
-    # set rotate orders on listed jnts
+        # set rotate orders on listed jnts
         for i in self.zyx:
             cmds.joint(self.origFkJnts[i], edit=True, rotationOrder="zyx")
-
-    # store orient data on joints for serialization. . . ?
+        
+        # store orient data on joints for serialization. . . ?
 
     def mirror_joints(self):
         self.mirrorFkJnts = zrt.mirror_joint_chain(self.origFkJnts[0], self.origPrefix, self.mirPrefix, self.mirrorAxis)

@@ -451,6 +451,91 @@ def create_twist_joints(numJnts, rotJnt, parentJnt, childJnt, twistAttr, baseNam
 
     return(twistJnts)
 
+
+def initial_pose_joints(ptsList, baseNames, orientOrder, upOrientAxis, primaryAxis="x", upAxis="y"):
+    """
+    ptsList (list of vec3's): locs for jnts
+    baseNames (list of strings): names of joints
+    orientOrder (string): "xyz", etc for init jnt orient
+    upOrientAxis (string): "yup", etc for init jnt orient
+    primaryAxis (string): "x", etc for manual jnt orient
+    upAxis (string): "y", etc for manual jnt orient
+
+    """
+# get and pass values for orient order and uporient axis
+# put joint in ref display layer temporarily
+    joints = create_joint_chain(ptsList, baseNames, orientOrder, upOrientAxis)
+
+    poseCtrls, poseGrps, octrls, ogrps = create_controls_and_orients_at_joints(joints[:-1], "sphere", primaryAxis, "poseCTRL", orient=True, upAxis=upAxis)
+    lockAttrs = ["s","tx", "ty", "tz"]
+
+    ctrlHierList = zip(poseCtrls, poseGrps, joints, octrls, ogrps)
+    poseConstraints = []
+    for i in range(len(ctrlHierList)):
+        if i>0:
+            oc = cmds.orientConstraint(ctrlHierList[i-1][2], ctrlHierList[i][1], mo=False)[0]
+            poseConstraints.append(oc)
+        for attr in lockAttrs:
+            cmds.setAttr("{0}.{1}".format(ctrlHierList[i][0], attr), l=True)
+        if i==1:
+            cmds.setAttr("{0}.rx".format(ctrlHierList[i][0]), l=True)
+            cmds.setAttr("{0}.ry".format(ctrlHierList[i][0]), l=True)
+            cmds.setAttr("{0}.rz".format(ctrlHierList[i][0]), l=True)
+            cmds.setAttr("{0}.r{1}".format(ctrlHierList[i][0], upAxis), l=False)
+        if i==0:
+            cmds.setAttr("{0}.tx".format(ctrlHierList[i][0]), l=False)
+            cmds.setAttr("{0}.ty".format(ctrlHierList[i][0]), l=False)
+            cmds.setAttr("{0}.tz".format(ctrlHierList[i][0]), l=False)
+        # cmds.setAttr("{0}.t{1}".format(ctrlHierList[i][0], self.primaryAxis), l=False)
+
+        oc1 = cmds.orientConstraint(joints[i], ctrlHierList[i][4], mo=False)
+        cmds.delete(oc1)
+        const = cmds.parentConstraint(ctrlHierList[i][0], ctrlHierList[i][2], mo=True)[0]
+        poseConstraints.append(const)
+
+    parent_hierarchy_grouped_controls(poseCtrls, poseGrps)
+
+    return(joints, poseCtrls, poseGrps, octrls, ogrps, poseConstraints)
+
+
+def clean_pose_joints(joints, poseConstraints, octrls, poseGrpTop, prefix, jntSuffix, deleteEnd=True):
+    """
+    joints (list strings): list of jnts
+    poseConstraints (list strings):
+    octrls (list strings): orient controls
+    poseGrpTop (string): top level grp of pose ctrls
+    deleteEnd (bool): whether to delete the last joint
+    """
+    cleanedJnts = []
+
+    cmds.delete(poseConstraints)
+    # unlock octrl attrs
+    attrs = ["t", "rx", "ry", "rz"]
+    for i in range(len(octrls)):
+        for attr in attrs:
+            cmds.setAttr("{0}.{1}".format(octrls[i], attr), l=False)
+        orient_joint_to_transform(joints[i], octrls[i])
+
+# save scale info from ctrls - still need to make a scalable control
+    cmds.delete(poseGrpTop)
+
+    for jnt in joints:
+        cmds.makeIdentity(jnt, apply=True)
+
+    if deleteEnd:
+        cmds.delete(joints[-1])
+        joints = joints[:-1]
+
+# maybe store the scale on the joint itself? Then delete it later. . . 
+    for jnt in joints:
+        name = name_object(jnt, prefix, jnt, "FK", jntSuffix)
+        cleanedJnts.append(name)
+
+    return(cleanedJnts)
+
+
+
+
 # hook controls vis into swtich
 
 # setup stretch (measure jtns, ik jnts, ik ctrl)
