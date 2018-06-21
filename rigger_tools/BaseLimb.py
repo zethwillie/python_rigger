@@ -48,6 +48,8 @@ class BaseLimb(object):
         # below needs to be created from main axis (ie. "x")
         self.orientOrder = "xyz"
         self.upOrientAxis = "yup"
+        self.twist = True
+        self.twistNum = 2
 
         # initialize variables
         self.side = {}
@@ -61,6 +63,8 @@ class BaseLimb(object):
         self.measureJoints = {}
         self.deformJoints = {}
         self.switchCtrls = {}
+        self.twistJoints = {}
+        self.sideGroups = {}
 
         self.jntSuffix = "JNT"
         self.mirrorAxis = "yz"
@@ -103,6 +107,9 @@ class BaseLimb(object):
         self.connect_deform_joints()
         self.create_ik_rig()
         self.create_ik_stretch()
+        self.create_side_groups()
+        if self.twist:
+            self.create_twist_extraction_rig()
 
     def create_initial_components(self):
         # create groups and hierarchy
@@ -133,6 +140,8 @@ class BaseLimb(object):
         self.switchCtrls["orig"] = None
         self.ikCtrls["orig"] = None
         self.ikCtrlGrps["orig"] = None
+        self.sideGroups["orig"] = None
+
         # self.measureDist["orig"] = None
         if self.mirror:
             self.side["mir"] = self.mirPrefix
@@ -142,7 +151,9 @@ class BaseLimb(object):
             self.switchCtrls["mir"] = None
             self.ikCtrls["mir"] = None # [ikCtrl, pvCtrl, pvLine]
             self.ikCtrlGrps["mir"] = None  # [ikCtrlGrp, pvCtrlGrp, pvLIne]
+            self.sideGroups["mir"] = None   # [lf_arm_GRP, lf_arm_attach_GRP]
             # self.measureDist["mir"] = None
+
 
     def create_duplicate_chains(self):
         # for key in jntDict, make duplicates. . . (put into dictionary)
@@ -164,7 +175,6 @@ class BaseLimb(object):
 
 
     def create_fk_rig(self):
-
         for side in self.fkJoints.keys():
             fkJoints = self.fkJoints[side]
             ctrls = []
@@ -227,7 +237,6 @@ class BaseLimb(object):
             self.ikCtrls[side] = [ctrl]
             self.ikCtrlGrps[side] = [grp] 
         # scale the control
-
             # create pole vec
             if side == "orig":
                 pvname = "{0}_{1}_poleVector_CTRL".format(self.origPrefix, self.part)
@@ -284,19 +293,52 @@ class BaseLimb(object):
             cmds.connectAttr("{0}.output.outputX".format(self.loMult), "{0}.sx".format(self.ikJoints[side][1]))
 
 
+    def create_side_groups(self):
+        for side in self.fkJoints.keys():
+            if side == "orig":
+                sideName = self.origPrefix
+            if side == "mir":
+                sideName = self.mirPrefix
+            sideGrp = cmds.group(em=True, name="{0}_{1}_GRP".format(sideName, self.part))
+            pos = cmds.xform(self.fkJoints[side][0], q=True, ws=True, rp=True)
+            rot = cmds.xform(self.fkJoints[side][0], q=True, ws=True, ro=True)
+            cmds.xform(sideGrp, ws=True, t=pos)
+            cmds.xform(sideGrp, ws=True, ro=rot)
+
+            attachGrp = cmds.duplicate(sideGrp, name="{0}_{1}_attach_GRP".format(sideName, self.part))[0]
+
+            cmds.parent(sideGrp, attachGrp)
+            sideList =[self.fkJoints[side][0], self.ikJoints[side][0], self.measureJoints[side][0], self.deformJoints[side][0]]
+
+            cmds.parent(sideList, sideGrp)
+
+            self.sideGroups[side] = [sideGrp, attachGrp]
+
+
     def create_twist_extraction_rig(self):
-        # for sides:
-            # MOVE THIS PART TO RIGGERTOOLS?
-            # for up arm:
-                # create setup and get attr onto ikfk switch
-                # create twist joints
-                # add to dict
-            # for lo arm:
-                # create setup and get attr onto ikfk switch
-                # create twist joints
-                # add to dict
-            # connect twist joints into scale? or not necessary?
-        pass
+        for side in self.deformJoints.keys():
+            if side == "orig":
+                sideName = self.origPrefix
+            if side == "mir":
+                sideName = self.mirPrefix
+
+            upTwistAttr = zrt.create_twist_extractor(rotJnt=self.deformJoints[side][0], tgtCtrl=self.switchCtrls[side], parObj=self.sideGroups[side][0], tgtAttr="upperTwist")
+            #  APPEND TO DEFORM JOINTS? 
+            self.twistJoints[side] = zrt.create_twist_joints(self.twistNum, self.deformJoints[side][0], self.deformJoints[side][0], self.deformJoints[side][1], upTwistAttr, "{0}_{1}_up".format(sideName, self.part), self.primaryAxis, reverse=True)
+
+            # add locator parented to elbow
+
+            loTwistAttr = zrt.create_twist_extractor(rotJnt=self.deformJoints[side][2], tgtCtrl=self.switchCtrls[side], parObj=self.deformJoints[side][1], tgtAttr="lowerTwist")
+            #  APPEND TO DEFORM JOINTS?
+            self.twistJoints[side] = zrt.create_twist_joints(self.twistNum, self.deformJoints[side][2], self.deformJoints[side][1], self.deformJoints[side][2], loTwistAttr, "{0}_{1}_low".format(sideName, self.part), self.primaryAxis, reverse=False)
+
+            # add locator parented to elbow twist of each
+
+        # add locator at actual elbow that is parent of other two
+
+        # connect twist joints into scale? or not necessary?
+        # add twist joints to deform joints list? 
+
 
     # mult stretch stuff by all ik joints?
 
@@ -304,10 +346,12 @@ class BaseLimb(object):
 
     # option for ribbon setup in here? 
 
-    #set up blends for all self.joints (traslate, rotate, scale)
+    # figure out how to tie up master ctrl (scale)
 
-    # package up components, color controls
+    # package up components, color controls, hide jnts, etc
+
 
     # bind joints for QSS (different if ribbon or just twist)
+    # add in game export rig
     # add option for game exportable joints QSS 
     # QSS for all controls

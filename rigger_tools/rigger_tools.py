@@ -230,6 +230,7 @@ def get_planar_position(rootPos, midPos, endPos, percent=None, dist=None):
     # get center-ish of rootEnd (relative to midjoint)
     if not percent:
         percent = (line*point)/(line*line)
+    
     projVec = line * percent + rootVec
     
     if not dist:
@@ -364,28 +365,37 @@ def create_stretch_setup(measureJnts, ikCtrl, limbName):
     return(upMult2, loMult2)
 
 
-def create_twist_extractor(rotJnt, tgtCtrl, rotJntParent, reverse=True, tgtAttr=None):
+def create_twist_extractor(rotJnt, tgtCtrl, parObj, tgtAttr=None):
     """ 
+    rotJnt is jnt we're getting rotation from 
+    parObj is parent of that rotJnt (should be at same mtx of the rot jnt, and oriented to the rot jnt)
     tgtCtrl is the ctrl we'll drop the twist attr onto
     tgtAttr is what to call the attr we're creating on the tgtCtrl
     """
-    # create two locators (base, twist)
-    baseLoc = cmds.spaceLocator(name="{0}_twistBase_LOC".format(rotJnt))[0]
-    twistLoc = cmds.spaceLocator(name="{0}_twistTwist_LOC".format(rotJnt))[0]
-    cmds.parent([baseLoc, twistLoc], rotJnt)
-    cmds.setAttr("{0}.t".format(baseLoc), 0, 0, 0)
-    cmds.setAttr("{0}.r".format(baseLoc), 0, 0, 0)
-    cmds.setAttr("{0}.t".format(twistLoc), 0, 0, 0)
-    cmds.setAttr("{0}.r".format(twistLoc), 0, 0, 0)
-    # orient base to parent xform
-    cmds.orientConstraint(rotJntParent, baseLoc, mo=True)
-    # mult matrix (matrix twst into 1, world inverse base into 2)
+# TRY THIS AS CONSTAINTS? 
+    baseLoc = cmds.spaceLocator(name="{0}_baseTswt_Loc".format(rotJnt))[0]
+    cmds.parent(baseLoc, rotJnt)
+    cmds.setAttr("{0}.t".format(baseLoc), 0,0,0)
+    cmds.setAttr("{0}.r".format(baseLoc), 0,0,0)
+    cmds.parent(baseLoc, parObj)
+    cmds.setAttr("{0}.v".format(baseLoc), 0)
+
+    twstLoc = cmds.spaceLocator(name="{0}_rotTswt_Loc".format(rotJnt))[0]
+    cmds.parent(twstLoc, rotJnt)
+    cmds.setAttr("{0}.t".format(twstLoc), 0,0,0)
+    cmds.setAttr("{0}.r".format(twstLoc), 0,0,0)
+    cmds.setAttr("{0}.v".format(twstLoc), 0)
+
+    # mult matrix (obj world into 1, parent inverse into 2)
     multMat = cmds.shadingNode("multMatrix", asUtility=True, name="{0}_twist_multMat".format(rotJnt))
-    cmds.connectAttr("{0}.worldInverseMatrix[0]".format(baseLoc), "{0}.matrixIn[0]".format(multMat), f=True)
-    cmds.connectAttr("{0}.worldMatrix[0]".format(twistLoc), "{0}.matrixIn[1]".format(multMat), f=True)
+
+    cmds.connectAttr("{0}.worldMatrix[0]".format(twstLoc), "{0}.matrixIn[0]".format(multMat), f=True)
+    cmds.connectAttr("{0}.worldInverseMatrix[0]".format(baseLoc), "{0}.matrixIn[1]".format(multMat), f=True)
+
     # multMatrix out to decomposeMatrix
     dm = cmds.shadingNode("decomposeMatrix", asUtility=True, name="{0}_twist_dm".format(rotJnt))
     cmds.connectAttr("{0}.matrixSum".format(multMat), "{0}.inputMatrix".format(dm), f=True)
+
     # create quatToEuler
     qte = cmds.shadingNode("quatToEuler", asUtility=True, name="{0}_twist_qte".format(rotJnt))
     cmds.connectAttr("{0}.outputQuat.outputQuatX".format(dm), "{0}.inputQuat.inputQuatX".format(qte))
@@ -398,16 +408,7 @@ def create_twist_extractor(rotJnt, tgtCtrl, rotJntParent, reverse=True, tgtAttr=
     if not attrTest:
         cmds.addAttr(tgtCtrl, ln=tgtAttr, at="float", dv=0, k=True)
 
-    #create reverse mult
-    revMult = cmds.shadingNode("multiplyDivide", asUtility=True, name="{0}_rev_mult".format(rotJnt))
-    if reverse:
-        cmds.setAttr("{0}.input2.input2X".format(revMult), -1)
-
-    cmds.connectAttr("{0}.outputRotate.outputRotateX".format(qte), "{0}.input1.input1X".format(revMult))
-    cmds.connectAttr("{0}.output.outputX".format(revMult), "{0}.{1}".format(tgtCtrl, tgtAttr))
-
-    cmds.setAttr("{0}.v".format(twistLoc), 0)
-    cmds.setAttr("{0}.v".format(baseLoc), 0)
+    cmds.connectAttr("{0}.outputRotate.outputRotateX".format(qte), "{0}.{1}".format(tgtCtrl, tgtAttr))
 
     return("{0}.{1}".format(tgtCtrl, tgtAttr))
 
@@ -420,6 +421,8 @@ def create_twist_joints(numJnts, rotJnt, parentJnt, childJnt, twistAttr, baseNam
     reverse: measn that twstjnt1 gets 100% and shrinks, false means it gets 0% and grows
     twistAttr: full name.attr of twist source
     """
+# CREATE A DISTANCE NODE FOR EACH TWIST JNT TO FIND IT'S LOCATION ALONG THE JOINT (use the percentage we're already getting)
+# ADD ATTRS FOR EACH JOINTS TWIST PERCENTAGE ONTO CONTROL? SET THAT TO INIT VALUE
 # if no child given, find it
     num = numJnts + 2 # to account for start and end
 
@@ -430,7 +433,7 @@ def create_twist_joints(numJnts, rotJnt, parentJnt, childJnt, twistAttr, baseNam
     twistJnts = []
     # create twist joints from shoulder, place them and parent to deform shoulder
     for i in range(num):
-        dupe = cmds.duplicate(rotJnt, parentOnly=True, name="{0}_twist{1}_JNT".format(baseName, i))[0]
+        dupe = cmds.duplicate(parentJnt, parentOnly=True, name="{0}_twist{1}_JNT".format(baseName, i))[0]
         twistJnts.append(dupe)
         cmds.parent(dupe, parentJnt)
         shrink = 1-(factor*i)
@@ -475,9 +478,11 @@ def initial_pose_joints(ptsList, baseNames, orientOrder, upOrientAxis, primaryAx
         if i>0:
             oc = cmds.orientConstraint(ctrlHierList[i-1][2], ctrlHierList[i][1], mo=False)[0]
             poseConstraints.append(oc)
-        for attr in lockAttrs:
-            cmds.setAttr("{0}.{1}".format(ctrlHierList[i][0], attr), l=True)
+            for attr in lockAttrs:
+                cmds.setAttr("{0}.{1}".format(ctrlHierList[i][0], attr), l=True)
+            cmds.setAttr("{0}.t{1}".format(ctrlHierList[i][0], primaryAxis), l=False)                
         if i==1:
+            # unlock the bend attr
             cmds.setAttr("{0}.rx".format(ctrlHierList[i][0]), l=True)
             cmds.setAttr("{0}.ry".format(ctrlHierList[i][0]), l=True)
             cmds.setAttr("{0}.rz".format(ctrlHierList[i][0]), l=True)
@@ -486,7 +491,7 @@ def initial_pose_joints(ptsList, baseNames, orientOrder, upOrientAxis, primaryAx
             cmds.setAttr("{0}.tx".format(ctrlHierList[i][0]), l=False)
             cmds.setAttr("{0}.ty".format(ctrlHierList[i][0]), l=False)
             cmds.setAttr("{0}.tz".format(ctrlHierList[i][0]), l=False)
-        # cmds.setAttr("{0}.t{1}".format(ctrlHierList[i][0], self.primaryAxis), l=False)
+
 
         oc1 = cmds.orientConstraint(joints[i], ctrlHierList[i][4], mo=False)
         cmds.delete(oc1)
