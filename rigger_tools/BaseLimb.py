@@ -107,9 +107,13 @@ class BaseLimb(object):
         self.connect_deform_joints()
         self.create_ik_rig()
         self.create_ik_stretch()
-        self.create_side_groups()
+        self.create_rigSide_groups()
         if self.twist:
             self.create_twist_extraction_rig()
+        self.create_ik_group()
+        self.clean_up_rig()
+        self.create_sets()
+
 
     def create_initial_components(self):
         # create groups and hierarchy
@@ -141,18 +145,17 @@ class BaseLimb(object):
         self.ikCtrls["orig"] = None
         self.ikCtrlGrps["orig"] = None
         self.sideGroups["orig"] = None
-
-        # self.measureDist["orig"] = None
+        self.twistJoints["orig"] = []
         if self.mirror:
             self.side["mir"] = self.mirPrefix
             self.fkJoints["mir"] = self.mirrorFkJnts
-            self.fkCtrls["mir"] = None
+            self.fkCtrls["mir"] = None # []
             self.fkCtrlGrps["mir"] = None
-            self.switchCtrls["mir"] = None
+            self.switchCtrls["mir"] = None # []
             self.ikCtrls["mir"] = None # [ikCtrl, pvCtrl, pvLine]
-            self.ikCtrlGrps["mir"] = None  # [ikCtrlGrp, pvCtrlGrp, pvLIne]
+            self.ikCtrlGrps["mir"] = None  # [ikCtrlGrp, pvCtrlGrp, pvLineGrp]
             self.sideGroups["mir"] = None   # [lf_arm_GRP, lf_arm_attach_GRP]
-            # self.measureDist["mir"] = None
+            self.twistJoints["mir"] = []   # [lf_arm_upTwist1_JNT, etc]
 
 
     def create_duplicate_chains(self):
@@ -259,7 +262,10 @@ class BaseLimb(object):
             elif side == "mir":
                 pvline = "{0}_{1}_poleVec_Line".format(self.mirPrefix, self.part)        
             pvLine = zrt.create_line_between(pv, jnts[1], "{0}".format(pvline))
+            pvGrp = cmds.group(em=True, name="{0}_GRP".format(pvLine))
+            cmds.parent(pvLine, pvGrp)
             self.ikCtrls[side].append(pvLine)
+            self.ikCtrlGrps[side].append(pvGrp)
             # set line as reference override
             shp = cmds.listRelatives(pvLine, s=True)[0]
             cmds.setAttr("{0}.overrideEnabled".format(shp), 1)
@@ -267,7 +273,8 @@ class BaseLimb(object):
             #connect to switch
             cmds.addAttr(self.switchCtrls[side], ln="poleVecLine", at="short", min=0, max=1, dv=1, k=True)
             cmds.connectAttr("{0}.poleVecLine".format(self.switchCtrls[side]), "{0}.overrideVisibility".format(shp))
-
+        # option for no flip pv?
+        # option to create follow spaces? (pv follow ik ctrl)
 
     def connect_deform_joints(self):
         # zip up fk, ik and deform joints for easier stuff
@@ -293,7 +300,7 @@ class BaseLimb(object):
             cmds.connectAttr("{0}.output.outputX".format(self.loMult), "{0}.sx".format(self.ikJoints[side][1]))
 
 
-    def create_side_groups(self):
+    def create_rigSide_groups(self):
         for side in self.fkJoints.keys():
             if side == "orig":
                 sideName = self.origPrefix
@@ -308,7 +315,7 @@ class BaseLimb(object):
             attachGrp = cmds.duplicate(sideGrp, name="{0}_{1}_attach_GRP".format(sideName, self.part))[0]
 
             cmds.parent(sideGrp, attachGrp)
-            sideList =[self.fkJoints[side][0], self.ikJoints[side][0], self.measureJoints[side][0], self.deformJoints[side][0]]
+            sideList =[self.fkJoints[side][0], self.ikJoints[side][0], self.measureJoints[side][0], self.deformJoints[side][0], self.fkCtrlGrps[side][0]]
 
             cmds.parent(sideList, sideGrp)
 
@@ -323,15 +330,17 @@ class BaseLimb(object):
                 sideName = self.mirPrefix
 
             upTwistAttr = zrt.create_twist_extractor(rotJnt=self.deformJoints[side][0], tgtCtrl=self.switchCtrls[side], parObj=self.sideGroups[side][0], tgtAttr="upperTwist")
-            #  APPEND TO DEFORM JOINTS? 
-            self.twistJoints[side] = zrt.create_twist_joints(self.twistNum, self.deformJoints[side][0], self.deformJoints[side][0], self.deformJoints[side][1], upTwistAttr, "{0}_{1}_up".format(sideName, self.part), self.primaryAxis, reverse=True)
 
+            twistJointsUp = zrt.create_twist_joints(self.twistNum, self.deformJoints[side][0], self.deformJoints[side][0], self.deformJoints[side][1], upTwistAttr, "{0}_{1}_up".format(sideName, self.part), self.primaryAxis, reverse=True)
+            for jnt in twistJointsUp:
+                self.twistJoints[side].append(jnt)
             # add locator parented to elbow
 
             loTwistAttr = zrt.create_twist_extractor(rotJnt=self.deformJoints[side][2], tgtCtrl=self.switchCtrls[side], parObj=self.deformJoints[side][1], tgtAttr="lowerTwist")
-            #  APPEND TO DEFORM JOINTS?
-            self.twistJoints[side] = zrt.create_twist_joints(self.twistNum, self.deformJoints[side][2], self.deformJoints[side][1], self.deformJoints[side][2], loTwistAttr, "{0}_{1}_low".format(sideName, self.part), self.primaryAxis, reverse=False)
 
+            twistJointsLo = zrt.create_twist_joints(self.twistNum, self.deformJoints[side][2], self.deformJoints[side][1], self.deformJoints[side][2], loTwistAttr, "{0}_{1}_low".format(sideName, self.part), self.primaryAxis, reverse=False)
+            for jnt in twistJointsLo:
+                self.twistJoints[side].append(jnt)
             # add locator parented to elbow twist of each
 
         # add locator at actual elbow that is parent of other two
@@ -344,14 +353,103 @@ class BaseLimb(object):
 
     # add attr for switch ctrl to drive the rot orders of each part (all the ctrls and joints)
 
-    # option for ribbon setup in here? 
+
 
     # figure out how to tie up master ctrl (scale)
 
-    # package up components, color controls, hide jnts, etc
+    # package up cmponents, color controls, hide jnts, etc
+    def create_ik_group(self):
+        ikName = "ik_world_rig_GRP"
+        if not cmds.objExists(ikName):
+            ikGrp = cmds.group(em=True, name=ikName)
+
+        for side in self.fkJoints.keys():
+            if side == "orig":
+                sideName = self.origPrefix
+            if side == "mir":
+                sideName = self.mirPrefix
+
+            ikStuff = [self.ikCtrlGrps[side], cmds.listRelatives(self.switchCtrls[side], p=True)[0]]
+
+            for stuff in ikStuff:
+                cmds.parent(stuff, ikGrp)
 
 
-    # bind joints for QSS (different if ribbon or just twist)
+    def clean_up_rig(self):
+    # clean up rig (hide jnts, connect vis, etc)
+        # hide jnts
+        for side in self.fkJoints.keys():
+            if side == "orig":
+                sideName = self.origPrefix
+            if side == "mir":
+                sideName = self.mirPrefix
+
+            hideJnts = [self.ikJoints[side][0], self.fkJoints[side][0], self.measureJoints[side][0]]
+            for obj in hideJnts:
+                cmds.setAttr("{0}.v".format(obj), 0)
+        # no inherit stuff? 
+            if not cmds.objExists("rig_noInherit_GRP"):
+                noInher = cmds.group(em=True, name="rig_noInherit_GRP")
+                cmds.setAttr("{0}.inheritsTransform".format(noInher), 0)
+            cmds.parent(self.ikCtrlGrps[side][2], noInher)
+        
+        # color controls
+            #how to do this? color attr from UI? 
+            if side == "orig":
+                color = "red"
+                secColor = "pink"
+            if side == "mir":
+                color = "blue"
+                secColor = "lightBlue"
+
+            primColor = [self.fkCtrls[side], [self.ikCtrls[side][0]]]
+            lightColor = [self.ikCtrls[side][1:], [self.switchCtrls[side]]]
+
+            for obj in primColor:
+                for ctrl in obj: 
+                    rig.assignColor(obj=ctrl, clr=color)
+            for obj in lightColor:
+                for ctrl in obj:
+                    rig.assignColor(obj=ctrl, clr=secColor)
+
+        # set up visibility switching
+            ikStuff = [self.ikCtrlGrps[side][0], self.ikCtrlGrps[side][1], self.ikCtrlGrps[side][2]]
+            fkStuff = [self.fkCtrlGrps[side][0]]
+
+            self.switchReverse = cmds.shadingNode("reverse", asUtility=True, name="{0}_{1}_ikfkVis_reverse".format(sideName, self.part))
+            cmds.connectAttr("{0}.fkik".format(self.switchCtrls[side]), "{0}.input.inputX".format(self.switchReverse))
+            for obj in fkStuff:
+                cmds.connectAttr("{0}.output.outputX".format(self.switchReverse), "{0}.v".format(obj))
+            for obj in ikStuff:
+                cmds.connectAttr("{0}.fkik".format(self.switchCtrls[side]), "{0}.v".format(obj))
+
+
+    def create_sets(self):
+        # set for all controls
+        ctrlSet = "CTRL_SET"
+        bindSet = "BIND_SET"
+        if not cmds.objExists(ctrlSet):
+            cmds.sets(name="CTRL_SET", em=True)
+        if not cmds.objExists(bindSet):
+            cmds.sets(name="BIND_SET", em=True)
+
+        for side in self.fkJoints.keys():
+            if side == "orig":
+                sideName = self.origPrefix
+            if side == "mir":
+                sideName = self.mirPrefix
+
+            ctrls = [self.fkCtrls[side], self.ikCtrls[side][:2], self.switchCtrls[side]]
+            for ctrlList in ctrls:
+                cmds.sets(ctrlList, addElement="CTRL_SET")
+            # bind joints set
+    # if ribbon or ikSpline is added, remove these joints and add those
+            jnts = [self.deformJoints[side][2:], self.twistJoints[side]]
+            for jntList in jnts:
+                cmds.sets(jntList, addElement="BIND_SET")
+
+
+
     # add in game export rig
     # add option for game exportable joints QSS 
-    # QSS for all controls
+    # option for ribbon setup in here? 

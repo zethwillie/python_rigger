@@ -126,7 +126,7 @@ def create_scale_reverse_network():
     pass
 
 
-def create_reverse_network(name,  inputAttr, revAttr, targetAttr):
+def create_reverse_network(name,  inputAttr, revAttr, targetAttr,):
     """revAttr should be 'all', 'x', 'y' or 'z'"""
     reverse = cmds.shadingNode("reverse", asUtility=True, name=name+"_reverse")
     if revAttr=="all":
@@ -409,6 +409,7 @@ def create_twist_extractor(rotJnt, tgtCtrl, parObj, tgtAttr=None):
         cmds.addAttr(tgtCtrl, ln=tgtAttr, at="float", dv=0, k=True)
 
     cmds.connectAttr("{0}.outputRotate.outputRotateX".format(qte), "{0}.{1}".format(tgtCtrl, tgtAttr))
+    cmds.setAttr("{0}.{1}".format(tgtCtrl, tgtAttr), l=True)
 
     return("{0}.{1}".format(tgtCtrl, tgtAttr))
 
@@ -449,8 +450,6 @@ def create_twist_joints(numJnts, rotJnt, parentJnt, childJnt, twistAttr, baseNam
 
         cmds.connectAttr(twistAttr, "{0}.input1.input1X".format(mult))
         cmds.connectAttr("{0}.output.outputX".format(mult), "{0}.r{1}".format(dupe, primaryAxis))
-
-        twistJnts.append(dupe)
 
     return(twistJnts)
 
