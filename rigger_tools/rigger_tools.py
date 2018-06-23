@@ -111,6 +111,8 @@ def create_orient_reverse_network(srcList, tgt, switchAttr, index=0):
 def create_parent_reverse_network(srcList, tgt, switchAttr, index=0):
     """
     create parent constraint to A, B, which is reversed
+    ARGS:
+        index (0, 1): which index gets the reverse
     """
     pc = cmds.parentConstraint(srcList, tgt, mo=False)[0]
     if index == 0:
@@ -122,8 +124,15 @@ def create_parent_reverse_network(srcList, tgt, switchAttr, index=0):
     return(pc)
 
 
-def create_scale_reverse_network():
-    pass
+def create_scale_reverse_network(srcList, tgt, switchAttr, index=0):
+    sc = cmds.scaleConstraint(srcList, tgt, mo=False)[0]
+    if index == 0:
+        cmds.connectAttr(switchAttr, "{0}.w1".format(sc))
+        create_reverse_network(tgt, switchAttr, "x", "{0}.w0".format(sc))
+    elif index == 1:
+        cmds.connectAttr(switchAttr, "{0}.w0".format(sc))
+        create_reverse_network(tgt, switchAttr, "x", "{0}.w1".format(sc))
+    return(sc)
 
 
 def create_reverse_network(name,  inputAttr, revAttr, targetAttr,):

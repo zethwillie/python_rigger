@@ -4,52 +4,49 @@ reload(zrt)
 import zTools.rig.zbw_rig as rig
 reload(rig)
 import maya.OpenMaya as om
+# import python_rigger.rigger_tools.rigger_window as zrw
+# reload(zrw)
 
-# make a class for ctrls? ? so we can get groups with .attrs ?
-class BaseLimbUI(object):
-    def __init__(self):
-        # call BaseLimb from here. . . first call is to pose_initial_joints(w args)
-        # second call is to set values for instance variables from here (ie. limb.origPrefix="lf", etc)
-        # third call is to CREATE_LIMB method to actually go through the process
-        # buttons will call the methods
-        pass
+
+# class BaseLimbUI(zrw.RiggerWindow):
+#     def __init__(self):
+#         # call BaseLimb from here. . . first call is to pose_initial_joints(w args)
+#         # second call is to set values for instance variables from here (ie. limb.origPrefix="lf", etc)
+#         # third call is to CREATE_LIMB method to actually go through the process
+#         # buttons will call the methods
+#         pass
 
 
 class BaseLimb(object):
 
     def __init__(self, fromUI=True):
-        self.dataFromUI = True
         self.origFkJnts = []
         self.mirrorFkJnts = []
         
         # turn on decompose matrix plugin
 
-        # delete this
-        self.set_values_UI()
-        # this will be what the actual code is. We'll just set all the values from the UI in the other case
-        # if not fromUI:
-        #     self.set_values_code()
-
-# a control on the switch that can drive the rotation order of all the things for each "part" (shldr, elbow, etc-->xyz changes all of the parts of that rig)
-# MAYBE COMBINE THOUGHTS: self.fkCtrls = {[lf_fk-Ctrls], [rt_fk_ctrls]}
-    def set_values_UI(self):
-        """ grab all relevant values from UI"""
-        #from ui. . . 
-        self.pts=[(5,20, 0),(15, 20, -1), (25, 20, 0), (27, 20, 0)]
-        self.part = "arm"
-        self.baseNames=["shoulder", "elbow", "wrist", "wristEnd"]
-        self.origPrefix = "lf"
-        self.mirror = True
+        # these are the default values of the limb
+        self.pts = [(5,20, 0),(15, 20, -1), (25, 20, 0), (27, 20, 0)] # list of pt positions for initial jnts
+        self.part = "arm" # ie. "arm"
+        self.baseNames = ["shoulder", "elbow", "wrist", "wristEnd"] # list of names of joints (i.e ["shoulder", "elbow", etc]). xtra for orienting!
+        self.jntSuffix = "JNT"      # what is the suffix for jnts
+        self.origPrefix = "lf"      # ie. "lf"
+        self.mirror = True          # do we mirror?
         if self.mirror:
-            self.mirPrefix = "rt"
-        self.primaryAxis = "x"
-        self.upAxis = "y"
-        self.tertiaryAxis = "z"
-        # below needs to be created from main axis (ie. "x")
-        self.orientOrder = "xyz"
-        self.upOrientAxis = "yup"
-        self.twist = True
-        self.twistNum = 2
+            self.mirPrefix = "rt"   # ie. "rt"
+        self.mirrorAxis = "yz"      # what is axis for joint mirroing (ie. "yz")
+        self.primaryAxis = "x"      # down the joint axis
+        self.upAxis = "y"           # up axis for joints orient
+        self.tertiaryAxis = "z"     # third axis
+        # below needs to be created from main axis, up axis etc (ie. "x")
+        self.orientOrder = "xyz"    # orient order for joint orient (ie. "xyz" or "zyx")
+        self.upOrientAxis = "yup"   # joint orient up axis (ie. "yup" or "zup")
+        self.createIK = True
+        self.twist = True           # do we create twist joints?
+        self.twistNum = 2           # how many (doesn't include top/bottom)?
+        self.secRotOrder = "zyx"  # the 'other' rotation order (ie. for wrists, etc)
+        self.secRotOrderJnts = [2]   # which joints get the secRotOrder. This is a list of the indices
+
 
         # initialize variables
         self.side = {}
@@ -66,18 +63,7 @@ class BaseLimb(object):
         self.twistJoints = {}
         self.sideGroups = {}
 
-        self.jntSuffix = "JNT"
-        self.mirrorAxis = "yz"
-        # this can be gotten in UI or Code later - this is which joint to add diff rotate orders to 
-        self.zyx = [2]
-        self.createIK = True
-
-    def set_values_code(self):
-        """set all relevant values from code"""
-    # add pts here as args instead of in init ( this is so we can call this from code)
-    # add basenames here instead of in init
-    # clean up options for wrist (instead of just zyx, make it more general)
-        pass
+# a control on the switch that can drive the rotation order of all the things for each "part" (shldr, elbow, etc-->xyz changes all of the parts of that rig)
 
 
     def pose_initial_joints(self):
@@ -95,7 +81,6 @@ class BaseLimb(object):
         """
         instructions to make the limb
         """
-        self.create_initial_components()
         self.clean_initial_joints()
         # add manual adjust joint orientation here. . .
         if self.mirror:
@@ -115,19 +100,14 @@ class BaseLimb(object):
         self.create_sets()
 
 
-    def create_initial_components(self):
-        # create groups and hierarchy
-        pass
-
-
     def clean_initial_joints(self):
         cmds.delete(self.dl)
 
         self.origFkJnts = zrt.clean_pose_joints(self.joints, self.poseConstraints, self.octrls, self.poseGrps[0], self.origPrefix, self.jntSuffix, deleteEnd=True)
 
         # set rotate orders on listed jnts
-        for i in self.zyx:
-            cmds.joint(self.origFkJnts[i], edit=True, rotationOrder="zyx")
+        for i in self.secRotOrderJnts:
+            cmds.joint(self.origFkJnts[i], edit=True, rotationOrder=self.secRotOrder)
         
         # store orient data on joints for serialization. . . ?
 
@@ -283,6 +263,7 @@ class BaseLimb(object):
             # should we parent constraint these? 
             for grp in joints:
                 zrt.create_parent_reverse_network(grp[:-1], grp[-1], "{0}.fkik".format(self.switchCtrls[side]), index=0)
+                zrt.create_scale_reverse_network(grp[:-1], grp[-1], "{0}.fkik".format(self.switchCtrls[side]), index=0)
 
     # a way to do gimbles in both ik and fk? create gimbel ctrl under grp. grp is parent constrained to ik/fk ctrls (like deform joint). ctrl then is what parent constrains to the deform joints
 
@@ -345,17 +326,7 @@ class BaseLimb(object):
 
         # add locator at actual elbow that is parent of other two
 
-        # connect twist joints into scale? or not necessary?
-        # add twist joints to deform joints list? 
-
-
-    # mult stretch stuff by all ik joints?
-
     # add attr for switch ctrl to drive the rot orders of each part (all the ctrls and joints)
-
-
-
-    # figure out how to tie up master ctrl (scale)
 
     # package up cmponents, color controls, hide jnts, etc
     def create_ik_group(self):
