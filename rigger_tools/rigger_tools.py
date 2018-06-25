@@ -428,10 +428,10 @@ def create_twist_joints(numJnts, rotJnt, parentJnt, childJnt, twistAttr, baseNam
     numJnts: NOT inclusive for first and last
     rotJnt: joint twist comes from
     parentJnt: jnt that twist joints are dupes of and is parent of twist jnts
+    childJnt: jnt that is child of parent joint (used to find location of twist jnt)
     reverse: measn that twstjnt1 gets 100% and shrinks, false means it gets 0% and grows
     twistAttr: full name.attr of twist source
     """
-# CREATE A DISTANCE NODE FOR EACH TWIST JNT TO FIND IT'S LOCATION ALONG THE JOINT (use the percentage we're already getting)
 # ADD ATTRS FOR EACH JOINTS TWIST PERCENTAGE ONTO CONTROL? SET THAT TO INIT VALUE
 # if no child given, find it
     num = numJnts + 2 # to account for start and end
@@ -444,11 +444,27 @@ def create_twist_joints(numJnts, rotJnt, parentJnt, childJnt, twistAttr, baseNam
     # create twist joints from shoulder, place them and parent to deform shoulder
     for i in range(num):
         dupe = cmds.duplicate(parentJnt, parentOnly=True, name="{0}_twist{1}_JNT".format(baseName, i))[0]
+        dupeGrp = cmds.group(em=True, name="{0}_twist{1}_GRP".format(baseName, i))
+        rig.snapTo(dupe, dupeGrp)
+        cmds.parent(dupe, dupeGrp)
         twistJnts.append(dupe)
-        cmds.parent(dupe, parentJnt)
+        cmds.parent(dupeGrp, parentJnt)
         shrink = 1-(factor*i)
         grow = factor*i
-        cmds.setAttr("{0}.t{1}".format(dupe, primaryAxis), fullDistance*grow)
+        cmds.setAttr("{0}.t{1}".format(dupeGrp, primaryAxis), fullDistance*grow)
+
+        pc = cmds.pointConstraint([parentJnt, childJnt], dupeGrp, mo=False)
+        if i == 0:
+            cmds.pointConstraint(childJnt, dupeGrp, e=True, w=0.0)
+            cmds.pointConstraint(parentJnt, dupeGrp, e=True, w=1)
+        elif i == num-1:
+            cmds.pointConstraint(childJnt, dupeGrp, e=True, w=1)
+            cmds.pointConstraint(parentJnt, dupeGrp, e=True, w=0)
+        else:
+            chldW = i
+            parntW = (numJnts+1)-i
+            cmds.pointConstraint(childJnt, dupeGrp, e=True, w=chldW)
+            cmds.pointConstraint(parentJnt, dupeGrp, e=True, w=parntW)
 
     # figure out how to do this with the fewest possible mult nodes
         mult = cmds.shadingNode("multiplyDivide", asUtility=True, name="{0}_twst{1}_mult".format(baseName, i))
@@ -458,9 +474,18 @@ def create_twist_joints(numJnts, rotJnt, parentJnt, childJnt, twistAttr, baseNam
             cmds.setAttr("{0}.input2.input2X".format(mult), grow)
 
         cmds.connectAttr(twistAttr, "{0}.input1.input1X".format(mult))
-        cmds.connectAttr("{0}.output.outputX".format(mult), "{0}.r{1}".format(dupe, primaryAxis))
+        cmds.connectAttr("{0}.output.outputX".format(mult), "{0}.r{1}".format(dupeGrp, primaryAxis))
 
-    return(twistJnts)
+    topHook = cmds.spaceLocator(name="{0}_topHook_LOC".format(baseName))[0]
+    cmds.parent(topHook, twistJnts[0])
+    cmds.setAttr("{0}.t".format(topHook), 0, 0, 0)
+    cmds.setAttr("{0}.r".format(topHook), 0, 0, 0)
+    lowHook = cmds.spaceLocator(name="{0}_lowHook_LOC".format(baseName))[0]
+    cmds.parent(lowHook, twistJnts[-1])
+    cmds.setAttr("{0}.t".format(lowHook), 0, 0, 0)
+    cmds.setAttr("{0}.r".format(lowHook), 0, 0, 0)
+
+    return(twistJnts, [topHook, lowHook])
 
 
 def initial_pose_joints(ptsList, baseNames, orientOrder, upOrientAxis, primaryAxis="x", upAxis="y"):
@@ -547,25 +572,18 @@ def clean_pose_joints(joints, poseConstraints, octrls, poseGrpTop, prefix, jntSu
     return(cleanedJnts)
 
 
+def create_rotate_order_attr(obj, attrName):
+    cmds.addAttr(obj, ln=attrName, at="enum", en="xyz:yzx:zxy:xzy:yxz:zyx", dv=1, k=True)
+    return("{0}.{1}".format(obj, attrName))
 
-
-# hook controls vis into swtich
-
-# setup stretch (measure jtns, ik jnts, ik ctrl)
-
-# create twist extractors (option for upper, lower [or more accurately forward, reverse]) and twist joints under combo rig
 
 # **rewrite ribbon stuff. . . 
 
 # *mocap stuff should be put ON TOP of these controls
 # *export rig should be put UNDER all of these things
 
-# package it all up
-
-
 # -- arm 
-# deal wtih orienting ik handle
-# hand stuff (locators, etc)
+# hand stuff
 
 # -- leg
 # deal wtih orienting ik handle

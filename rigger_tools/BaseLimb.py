@@ -4,17 +4,30 @@ reload(zrt)
 import zTools.rig.zbw_rig as rig
 reload(rig)
 import maya.OpenMaya as om
-# import python_rigger.rigger_tools.rigger_window as zrw
-# reload(zrw)
+import python_rigger.rigger_tools.rigger_window as zrw
+reload(zrw)
 
 
-# class BaseLimbUI(zrw.RiggerWindow):
-#     def __init__(self):
-#         # call BaseLimb from here. . . first call is to pose_initial_joints(w args)
-#         # second call is to set values for instance variables from here (ie. limb.origPrefix="lf", etc)
-#         # third call is to CREATE_LIMB method to actually go through the process
-#         # buttons will call the methods
-#         pass
+class BaseLimbUI(zrw.RiggerWindow):
+    def __init__(self):
+        self.width = 300
+        self.height = 600
+
+        self.winInitName = "zbw_limbUI"
+        self.winTitle="Base Limb UI"
+        # common
+        self.defaultLimbName = "limb"
+        self.defaultOrigPrefix = "L"
+        self.defaultMirPrefix = "R"
+        self.pts = [(5,20, 0),(15, 20, -1), (25, 20, 0), (27, 20, 0)]
+        self.baseNames = ["limb1", "limb2", "limb3", "limb4"]
+        self.secRotOrderJnts = [2]
+        self.make_UI()
+
+    def create_rigger(self, *args):
+        self.rigger = BaseLimb()
+        self.get_values_for_rigger()
+        self.set_values_for_rigger()
 
 
 class BaseLimb(object):
@@ -263,9 +276,11 @@ class BaseLimb(object):
             # should we parent constraint these? 
             for grp in joints:
                 zrt.create_parent_reverse_network(grp[:-1], grp[-1], "{0}.fkik".format(self.switchCtrls[side]), index=0)
-                zrt.create_scale_reverse_network(grp[:-1], grp[-1], "{0}.fkik".format(self.switchCtrls[side]), index=0)
+                # zrt.create_scale_reverse_network(grp[:-1], grp[-1], "{0}.fkik".format(self.switchCtrls[side]), index=0)
 
     # a way to do gimbles in both ik and fk? create gimbel ctrl under grp. grp is parent constrained to ik/fk ctrls (like deform joint). ctrl then is what parent constrains to the deform joints
+
+    # add no flip pole vector 
 
     def create_ik_stretch(self):
         # LET"S DO THIS SCALE-WISE FOR NOW
@@ -312,17 +327,16 @@ class BaseLimb(object):
 
             upTwistAttr = zrt.create_twist_extractor(rotJnt=self.deformJoints[side][0], tgtCtrl=self.switchCtrls[side], parObj=self.sideGroups[side][0], tgtAttr="upperTwist")
 
-            twistJointsUp = zrt.create_twist_joints(self.twistNum, self.deformJoints[side][0], self.deformJoints[side][0], self.deformJoints[side][1], upTwistAttr, "{0}_{1}_up".format(sideName, self.part), self.primaryAxis, reverse=True)
+            twistJointsUp, twistHooksUp = zrt.create_twist_joints(self.twistNum, self.deformJoints[side][0], self.deformJoints[side][0], self.deformJoints[side][1], upTwistAttr, "{0}_{1}_up".format(sideName, self.part), self.primaryAxis, reverse=True)
             for jnt in twistJointsUp:
                 self.twistJoints[side].append(jnt)
-            # add locator parented to elbow
 
             loTwistAttr = zrt.create_twist_extractor(rotJnt=self.deformJoints[side][2], tgtCtrl=self.switchCtrls[side], parObj=self.deformJoints[side][1], tgtAttr="lowerTwist")
 
-            twistJointsLo = zrt.create_twist_joints(self.twistNum, self.deformJoints[side][2], self.deformJoints[side][1], self.deformJoints[side][2], loTwistAttr, "{0}_{1}_low".format(sideName, self.part), self.primaryAxis, reverse=False)
+            twistJointsLo, twistHooksLo = zrt.create_twist_joints(self.twistNum, self.deformJoints[side][2], self.deformJoints[side][1], self.deformJoints[side][2], loTwistAttr, "{0}_{1}_low".format(sideName, self.part), self.primaryAxis, reverse=False)
             for jnt in twistJointsLo:
                 self.twistJoints[side].append(jnt)
-            # add locator parented to elbow twist of each
+
 
         # add locator at actual elbow that is parent of other two
 
@@ -394,6 +408,29 @@ class BaseLimb(object):
             for obj in ikStuff:
                 cmds.connectAttr("{0}.fkik".format(self.switchCtrls[side]), "{0}.v".format(obj))
 
+            # connect rotate orders
+            for i in range(len(self.fkJoints[side])):
+                roattr = zrt.create_rotate_order_attr(self.switchCtrls[side], "{0}RotateOrder".format(self.baseNames[i]))
+                
+                objList = [self.fkJoints[side][i], self.ikJoints[side][i], self.deformJoints[side][i], self.fkCtrls[side][i], self.fkCtrlGrps[side][i], self.ikCtrls[side][0], self.ikCtrlGrps[side][0]]
+
+                for obj in objList:
+                    cmds.connectAttr(roattr, "{0}.rotateOrder".format(obj), f=True)
+
+                axes = ["x", "y", "z"]
+                axes.remove(self.primaryAxis)
+                axes.remove(self.upAxis)
+                origRotOrder = "{0}{1}{2}".format(self.primaryAxis, self.upAxis, axes[0])
+
+                roList = ["xyz", "yzx", "zxy", "xzy", "yxz", "zyx"]
+
+                if i in self.secRotOrderJnts:
+                    roindex = roList.index(self.secRotOrder)
+                    cmds.setAttr(roattr, roindex)
+                else:
+                    roindex = roList.index(origRotOrder)
+                    cmds.setAttr(roattr, roindex)
+
 
     def create_sets(self):
         # set for all controls
@@ -415,11 +452,10 @@ class BaseLimb(object):
                 cmds.sets(ctrlList, addElement="CTRL_SET")
             # bind joints set
     # if ribbon or ikSpline is added, remove these joints and add those
+    # if NOT twist joints add all deform joints
             jnts = [self.deformJoints[side][2:], self.twistJoints[side]]
             for jntList in jnts:
                 cmds.sets(jntList, addElement="BIND_SET")
-
-
 
     # add in game export rig
     # add option for game exportable joints QSS 
