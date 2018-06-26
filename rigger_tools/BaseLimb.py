@@ -43,6 +43,8 @@ class BaseLimb(object):
         self.part = "arm" # ie. "arm"
         self.baseNames = ["shoulder", "elbow", "wrist", "wristEnd"] # list of names of joints (i.e ["shoulder", "elbow", etc]). xtra for orienting!
         self.jntSuffix = "JNT"      # what is the suffix for jnts
+        self.ctrlSuffix = "CTRL"
+        self.groupSuffix = "GRP"
         self.origPrefix = "lf"      # ie. "lf"
         self.mirror = True          # do we mirror?
         if self.mirror:
@@ -176,7 +178,7 @@ class BaseLimb(object):
             ctrls = []
             grps = []
             for jnt in fkJoints:
-                ctrl, grp = zrt.create_control_at_joint(jnt, "cube", self.primaryAxis, "{0}_FK_{1}_CTRL".format(self.side[side], jnt.split("_")[1]))
+                ctrl, grp = zrt.create_control_at_joint(jnt, "cube", self.primaryAxis, "{0}_FK_{1}_{2}".format(self.side[side], jnt.split("_")[1], self.ctrlSuffix), self.groupSuffix)
                 ctrls.append(ctrl)
                 grps.append(grp)
             zrt.parent_hierarchy_grouped_controls(ctrls, grps)
@@ -196,8 +198,8 @@ class BaseLimb(object):
     def create_fkik_switch(self):
         for side in self.deformJoints.keys():
             # this defaults to the third joint in chain
-            ctrl = rig.createControl(name="{0}_{1}_IkFkSwitch_CTRL".format(self.side[side], self.part), type="star", axis=self.primaryAxis)
-            grp = rig.groupFreeze(ctrl)
+            ctrl = rig.createControl(name="{0}_{1}_IkFkSwitch_{2}".format(self.side[side], self.part, self.ctrlSuffix), type="star", axis=self.primaryAxis)
+            grp = rig.groupFreeze(ctrl, self.groupSuffix)
         #get scale factor
             root = cmds.xform(self.deformJoints[side][0], q=True, ws=True, rp=True)
             mid = cmds.xform(self.deformJoints[side][1], q=True, ws=True, rp=True)
@@ -227,20 +229,22 @@ class BaseLimb(object):
 
             handle = cmds.ikHandle(startJoint=jnts[0], endEffector=jnts[2], name=name, solver="ikRPsolver")[0]
             cmds.setAttr("{0}.visibility".format(handle), 0)
-            ctrl, grp = zrt.create_control_at_joint(jnts[2], "arrowCross", self.primaryAxis, "{0}_CTRL".format(name))
+            ctrl, grp = zrt.create_control_at_joint(jnts[2], "arrowCross", self.primaryAxis, "{0}_{1}".format(name, self.ctrlSuffix), grpSuffix=self.groupSuffix)
             cmds.parent(handle, ctrl)
             oc = cmds.orientConstraint(ctrl, jnts[2], mo=True)
             self.ikCtrls[side] = [ctrl]
             self.ikCtrlGrps[side] = [grp] 
         # scale the control
+
+    # extract the pole Vector bits to riggerTools
             # create pole vec
             if side == "orig":
-                pvname = "{0}_{1}_poleVector_CTRL".format(self.origPrefix, self.part)
+                pvname = "{0}_{1}_poleVector_{2}".format(self.origPrefix, self.part, self.ctrlSuffix)
             elif side == "mir":
-                pvname = "{0}_{1}_poleVector_CTRL".format(self.mirPrefix, self.part)
+                pvname = "{0}_{1}_poleVector_{2}".format(self.mirPrefix, self.part, self.ctrlSuffix)
             pv = rig.createControl(name=pvname, type="sphere", color="red", axis="x")
             self.ikCtrls[side].append(pv)
-            pvgrp = rig.groupFreeze(pv)
+            pvgrp = rig.groupFreeze(pv, suffix=self.groupSuffix)
             self.ikCtrlGrps[side].append(pvgrp)
 
             # place and constrain pole vec
@@ -255,7 +259,7 @@ class BaseLimb(object):
             elif side == "mir":
                 pvline = "{0}_{1}_poleVec_Line".format(self.mirPrefix, self.part)        
             pvLine = zrt.create_line_between(pv, jnts[1], "{0}".format(pvline))
-            pvGrp = cmds.group(em=True, name="{0}_GRP".format(pvLine))
+            pvGrp = cmds.group(em=True, name="{0}_{1}".format(pvLine, self.groupSuffix))
             cmds.parent(pvLine, pvGrp)
             self.ikCtrls[side].append(pvLine)
             self.ikCtrlGrps[side].append(pvGrp)
@@ -302,13 +306,13 @@ class BaseLimb(object):
                 sideName = self.origPrefix
             if side == "mir":
                 sideName = self.mirPrefix
-            sideGrp = cmds.group(em=True, name="{0}_{1}_GRP".format(sideName, self.part))
+            sideGrp = cmds.group(em=True, name="{0}_{1}_{2}".format(sideName, self.part, self.groupSuffix))
             pos = cmds.xform(self.fkJoints[side][0], q=True, ws=True, rp=True)
             rot = cmds.xform(self.fkJoints[side][0], q=True, ws=True, ro=True)
             cmds.xform(sideGrp, ws=True, t=pos)
             cmds.xform(sideGrp, ws=True, ro=rot)
 
-            attachGrp = cmds.duplicate(sideGrp, name="{0}_{1}_attach_GRP".format(sideName, self.part))[0]
+            attachGrp = cmds.duplicate(sideGrp, name="{0}_{1}_attach_{2}".format(sideName, self.part, self.groupSuffix))[0]
 
             cmds.parent(sideGrp, attachGrp)
             sideList =[self.fkJoints[side][0], self.ikJoints[side][0], self.measureJoints[side][0], self.deformJoints[side][0], self.fkCtrlGrps[side][0]]
@@ -327,13 +331,13 @@ class BaseLimb(object):
 
             upTwistAttr = zrt.create_twist_extractor(rotJnt=self.deformJoints[side][0], tgtCtrl=self.switchCtrls[side], parObj=self.sideGroups[side][0], tgtAttr="upperTwist")
 
-            twistJointsUp, twistHooksUp = zrt.create_twist_joints(self.twistNum, self.deformJoints[side][0], self.deformJoints[side][0], self.deformJoints[side][1], upTwistAttr, "{0}_{1}_up".format(sideName, self.part), self.primaryAxis, reverse=True)
+            twistJointsUp, twistHooksUp = zrt.create_twist_joints(self.twistNum, self.deformJoints[side][0], self.deformJoints[side][0], self.deformJoints[side][1], upTwistAttr, "{0}_{1}_up".format(sideName, self.part), self.primaryAxis, grpSuffix=self.groupSuffix, jntSuffix=self.jntSuffix, reverse=True)
             for jnt in twistJointsUp:
                 self.twistJoints[side].append(jnt)
 
             loTwistAttr = zrt.create_twist_extractor(rotJnt=self.deformJoints[side][2], tgtCtrl=self.switchCtrls[side], parObj=self.deformJoints[side][1], tgtAttr="lowerTwist")
 
-            twistJointsLo, twistHooksLo = zrt.create_twist_joints(self.twistNum, self.deformJoints[side][2], self.deformJoints[side][1], self.deformJoints[side][2], loTwistAttr, "{0}_{1}_low".format(sideName, self.part), self.primaryAxis, reverse=False)
+            twistJointsLo, twistHooksLo = zrt.create_twist_joints(self.twistNum, self.deformJoints[side][2], self.deformJoints[side][1], self.deformJoints[side][2], loTwistAttr, "{0}_{1}_low".format(sideName, self.part), self.primaryAxis, grpSuffix=self.groupSuffix, jntSuffix=self.jntSuffix, reverse=False)
             for jnt in twistJointsLo:
                 self.twistJoints[side].append(jnt)
 
@@ -373,7 +377,7 @@ class BaseLimb(object):
             for obj in hideJnts:
                 cmds.setAttr("{0}.v".format(obj), 0)
         # no inherit stuff? 
-            if not cmds.objExists("rig_noInherit_GRP"):
+            if not cmds.objExists("rig_noInherit_GRP".format(self.groupSuffix)):
                 noInher = cmds.group(em=True, name="rig_noInherit_GRP")
                 cmds.setAttr("{0}.inheritsTransform".format(noInher), 0)
             cmds.parent(self.ikCtrlGrps[side][2], noInher)

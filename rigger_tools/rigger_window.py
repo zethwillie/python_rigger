@@ -44,7 +44,12 @@ class RiggerWindow(object):
         self.commonSetupFLO = cmds.frameLayout(l="1. General Setup", collapsable=False, w=self.width, bgc=(0, 0, 0), parent=self.mainColumn, cc=self.resize_window)
         self.limbNameTFG = cmds.textFieldGrp(l="Limb Name: ", columnAlign2=("left", "left"), columnWidth2=(75,200), tx=self.defaultLimbName)
 
-        self.origPrefixNameRBG = cmds.radioButtonGrp(l="Orig Prefix:", numberOfRadioButtons=4, label1="none", label2="lf", label3="rt", label4="custom", columnAlign=([1,"left"]), columnWidth=([1, 65], [2,50], [3,50], [4,50]), select=2, changeCommand=self.prefix_change)
+        self.origPrefixNameOM = cmds.optionMenu(l="Original Prefix:", changeCommand=self.prefix_change)
+        cmds.menuItem(l="None")
+        cmds.menuItem(l="lf")
+        cmds.menuItem(l="rt")
+        cmds.menuItem(l="custom")
+        cmds.optionMenu(self.origPrefixNameOM, e=True, value="lf")
 
         self.otherRCL = cmds.rowColumnLayout(nc=2, w=self.width)
         self.otherPrefixTFG = cmds.textFieldGrp(l="Custom Prefix: ", enable=False, columnAlign2=("left", "left"), columnWidth2=(75,70), text=self.defaultOrigPrefix)
@@ -52,35 +57,39 @@ class RiggerWindow(object):
         
         cmds.setParent(self.commonSetupFLO)
 
-        self.mirrorCB = cmds.checkBox(label="Mirror the limb?", value=True, changeCommand= self.change_mirror)
+        self.mirrorCB = cmds.checkBox(label="Mirror the limb?", value=True, changeCommand=self.change_mirror)
         self.mirrorAxisOM = cmds.optionMenu(l="mirrorAxis:")
         cmds.menuItem(l="xy")
         cmds.menuItem(l="xz")
         cmds.menuItem(l="yz")
-        cmds.optionMenu(self.mirrorAxisOM, e=True, sl=3)
+        cmds.optionMenu(self.mirrorAxisOM, e=True, value="yz")
 
 
         self.commonRCL = cmds.rowColumnLayout(nc=2, w=self.width)
-        self.jntSuffixTFG = cmds.textFieldGrp(l="jnt suffix", tx="JNT", cl2=("left", "left"), cw2 =(50,75), en=False)
+        self.jntSuffixTFG = cmds.textFieldGrp(l="jnt suffix", tx="JNT", cl2=("left", "left"), cw2 =(50,75), en=True)
         #get suffix for ctrls
-        self.ctrlSuffixTFG = cmds.textFieldGrp(l="ctrl suffix", tx="CTRL", cl2=("left", "left"), cw2 =(50,75), en=False)
+        self.ctrlSuffixTFG = cmds.textFieldGrp(l="ctrl suffix", tx="CTRL", cl2=("left", "left"), cw2 =(50,75), en=True)
         #get suffix for grps
-        self.groupSuffixTFG = cmds.textFieldGrp(l="grp suffix", tx="GRP", cl2=("left", "left"), cw2 =(50,75), en=False)
+        self.groupSuffixTFG = cmds.textFieldGrp(l="grp suffix", tx="GRP", cl2=("left", "left"), cw2 =(50,75), en=True)
 
         cmds.setParent(self.mainColumn)
         self.commonJointsFLO = cmds.frameLayout(l="2. Rig/Joint Setup", cll=False, cl=True, w=self.width, bgc=(0, 0, 0), cc=self.resize_window)
 # make these pull downs with positive and negative
         self.jntMainAxisRGB = cmds.radioButtonGrp(l="Main Joint Axis", nrb=3, l1="x", l2="y", l3="z", cal=([1,"left"]), cw=([1, 100], [2,50], [3,50]), sl=1, en=True)
-        self.jntSecAxisRBG = cmds.radioButtonGrp(l="Second Joint Axis", nrb=3, l1="x", l2="y", l3="z", cal=([1,"left"]), cw=([1, 100], [2,50], [3,50]), sl=2, en=True)
-        self.jntSecAxisDirRBG = cmds.radioButtonGrp(l="Secondary axis pos/neg", nrb=2, l1="+", l2="-", cal=([1,"left"]), cw=([1,150], [2,50], [3,50]), sl=1, en=False)        
+        self.jntSecAxisOM = cmds.optionMenu(l="Second Joint Axis")
+        cmds.menuItem(l="xup")
+        cmds.menuItem(l="xdown")
+        cmds.menuItem(l="yup")
+        cmds.menuItem(l="ydown")
+        cmds.menuItem(l="zup")
+        cmds.menuItem(l="zdown")
+        cmds.optionMenu(self.jntSecAxisOM, e=True, value="yup")
 
         self.ikCBG = cmds.checkBoxGrp(ncb=1, l1="IK", v1=True)
 
         self.twistOnCBG = cmds.checkBoxGrp(ncb=1, l1="Twist Jnts", v1=True, cc1=self.spread_toggle) # could add twistup/lo, and stretchy options here
         self.numTwistJntsIFG = cmds.intFieldGrp(l="Number of (mid) twist jnts:", cal=[1,"left"], cw=([1,150], [2,50]), v1=2)
         self.noFlipCG = cmds.checkBox(l="Use a 'no flip' pole vector?", v=False, en=False)
-
-    # sec rot order
         self.secRotOrderOM = cmds.optionMenu(l="Secondary Rot Order:", w=50)
         cmds.menuItem(l="xyz")
         cmds.menuItem(l="xzy")
@@ -123,21 +132,29 @@ class RiggerWindow(object):
     def change_mirror(self, *args):
         on = cmds.checkBox(self.mirrorCB, q=True, v=True)
         if on:
-            cmds.radioButtonGrp(self.mirrorAxisRBG, e=True, en=True)
+            cmds.optionMenu(self.mirrorAxisOM, e=True, en=True)
         else:
-            cmds.radioButtonGrp(self.mirrorAxisRBG, e=True, en=False)
-
+            cmds.optionMenu(self.mirrorAxisOM, e=True, en=False)
 
 
     def prefix_change(self, *args):
-        sel = cmds.radioButtonGrp(self.origPrefixNameRBG, q=True, sl=True)
+        value = cmds.optionMenu(self.origPrefixNameOM, q=True, value=True)
 
-        if sel == 4:
+        if value == "None":
+            cmds.textFieldGrp(self.otherPrefixTFG, e=True, en=False)
+            cmds.textFieldGrp(self.otherMirrorTFG, e=True, en=False)
+            cmds.checkBox(self.mirrorCB, e=True, value=False, en=False)
+            self.change_mirror()
+        elif value == "custom":
             cmds.textFieldGrp(self.otherPrefixTFG, e=True, en=True)
             cmds.textFieldGrp(self.otherMirrorTFG, e=True, en=True)
+            cmds.checkBox(self.mirrorCB, e=True, en=True)
+            self.change_mirror()
         else:
             cmds.textFieldGrp(self.otherPrefixTFG, e=True, en=False)
             cmds.textFieldGrp(self.otherMirrorTFG, e=True, en=False)
+            cmds.checkBox(self.mirrorCB, e=True, en=True)
+            self.change_mirror()
 
 
     def create_rigger(self, *args):
@@ -153,15 +170,19 @@ class RiggerWindow(object):
         # do this here to help get rid of errors building if we can catch them here? At least for now, while building
         self.part = cmds.textFieldGrp(self.limbNameTFG, q=True, tx=True)
 
-        self.jntSuffix = "JNT"
+        self.jntSuffix = cmds.textFieldGrp(self.jntSuffixTFG, q=True, tx=True)
+        self.ctrlSuffix = cmds.textFieldGrp(self.ctrlSuffixTFG, q=True, tx=True)
+        self.groupSuffix = cmds.textFieldGrp(self.groupSuffixTFG, q=True, tx=True)
+
         # get prefix stuff here
-        if cmds.radioButtonGrp(self.origPrefixNameRBG, q=True, sl=True)==1:
+        if cmds.optionMenu(self.origPrefixNameOM, q=True, value=True)=="None":
             self.origPrefix = ""
             self.mirPrefix = "Null"
-        elif cmds.radioButtonGrp(self.origPrefixNameRBG, q=True, sl=True)==2:
+    # here we should turn mirror off
+        elif cmds.optionMenu(self.origPrefixNameOM, q=True, value=True)=="lf":
             self.origPrefix = "lf"
             self.mirPrefix = "rt"
-        elif cmds.radioButtonGrp(self.origPrefixNameRBG, q=True, sl=True)==3:
+        elif cmds.optionMenu(self.origPrefixNameOM, q=True, value=True)=="rt":
             self.origPrefix = "rt"
             self.mirPrefix = "lf"
         else:
@@ -169,7 +190,7 @@ class RiggerWindow(object):
             self.mirPrefix = cmds.textFieldGrp(self.otherMirrorTFG, q=True, tx=True)
 
         self.mirror = cmds.checkBox(self.mirrorCB, q=True, value=True)
-        self.mirrorAxis = cmds.optionMenu(self.mirrorAxisOM, q=True, v=True)
+        self.mirrorAxis = cmds.optionMenu(self.mirrorAxisOM, q=True, value=True)
 
 
         primAx = cmds.radioButtonGrp(self.jntMainAxisRGB, q=True, sl=True)
@@ -180,19 +201,13 @@ class RiggerWindow(object):
         elif primAx == 3: 
             self.primaryAxis = "z"
 
-        upAx = cmds.radioButtonGrp(self.jntSecAxisRBG, q=True, sl=True)
-        if upAx == 1:
-            self.upAxis = "x"
-        elif upAx == 2: 
-            self.upAxis = "y"
-        elif upAx == 3: 
-            self.upAxis = "z"
+        self.upOrientAxis = cmds.optionMenu(self.jntSecAxisOM, q=True, value=True)
+        self.upAxis = self.upOrientAxis[0]
 
         axes = ["x", "y", "z"]
         axes.remove(self.primaryAxis)
         axes.remove(self.upAxis)
         self.orientOrder = "{0}{1}{2}".format(self.primaryAxis, self.upAxis, axes[0])
-        self.upOrientAxis = "{0}up".format(self.upAxis)
 
         self.createIK = cmds.checkBoxGrp(self.ikCBG, q=True, v1=True)
 
@@ -209,9 +224,10 @@ class RiggerWindow(object):
         self.rigger.pts = self.pts # list of pt positions for initial jnts
         self.rigger.part = self.part         # ie. "arm"
         self.rigger.baseNames = self.baseNames # list of names of joints (i.e ["shoulder", "elbow", etc])
-        self.rigger.jntSuffix = "JNT"      # what is the suffix for jnts
-        self.rigger.groupSuffix = "GRP"
-        self.rigger.ctrlSuffix = "CTRL"
+        self.rigger.jntSuffix = self.jntSuffix     # what is the suffix for jnts
+        self.rigger.groupSuffix = self.groupSuffix
+        self.rigger.ctrlSuffix = self.ctrlSuffix
+        
         self.rigger.origPrefix = self.origPrefix      # ie. "lf"
         self.rigger.mirror = self.mirror          # do we mirror?
         if self.rigger.mirror:

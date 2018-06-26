@@ -153,10 +153,12 @@ def create_reverse_network(name,  inputAttr, revAttr, targetAttr,):
     return(reverse)
 
 
-def create_control_at_joint(jnt, ctrlType, axis, name):
-    """orient will create a new control UNDER the ctrl that we can use to  orient pose joints"""
+def create_control_at_joint(jnt, ctrlType, axis, name, grpSuffix="GRP"):
+    """orient will create a new control UNDER the ctrl that we can use to  orient pose joints
+        NAME  is full name including "ctrl"
+    """
     ctrl = rig.createControl(name, ctrlType, axis)
-    grp = rig.groupFreeze(ctrl)
+    grp = rig.groupFreeze(ctrl, grpSuffix)
     rotOrder = cmds.xform(jnt, q=True, roo=True)
     cmds.xform(ctrl, roo=rotOrder)
     cmds.xform(grp, roo=rotOrder)
@@ -423,7 +425,7 @@ def create_twist_extractor(rotJnt, tgtCtrl, parObj, tgtAttr=None):
     return("{0}.{1}".format(tgtCtrl, tgtAttr))
 
 
-def create_twist_joints(numJnts, rotJnt, parentJnt, childJnt, twistAttr, baseName, primaryAxis="x", reverse=True):
+def create_twist_joints(numJnts, rotJnt, parentJnt, childJnt, twistAttr, baseName, primaryAxis="x", grpSuffix="GRP", jntSuffix="JNT", reverse=True):
     """
     numJnts: NOT inclusive for first and last
     rotJnt: joint twist comes from
@@ -435,16 +437,14 @@ def create_twist_joints(numJnts, rotJnt, parentJnt, childJnt, twistAttr, baseNam
 # ADD ATTRS FOR EACH JOINTS TWIST PERCENTAGE ONTO CONTROL? SET THAT TO INIT VALUE
 # if no child given, find it
     num = numJnts + 2 # to account for start and end
-
     factor = 1.0/(num-1.0)
-
     fullDistance = cmds.getAttr("{0}.t{1}".format(childJnt, primaryAxis))
 
     twistJnts = []
     # create twist joints from shoulder, place them and parent to deform shoulder
     for i in range(num):
-        dupe = cmds.duplicate(parentJnt, parentOnly=True, name="{0}_twist{1}_JNT".format(baseName, i))[0]
-        dupeGrp = cmds.group(em=True, name="{0}_twist{1}_GRP".format(baseName, i))
+        dupe = cmds.duplicate(parentJnt, parentOnly=True, name="{0}_twist{1}_{2}".format(baseName, i, jntSuffix))[0]
+        dupeGrp = cmds.group(em=True, name="{0}_twist{1}_{2}".format(baseName, i, grpSuffix))
         rig.snapTo(dupe, dupeGrp)
         cmds.parent(dupe, dupeGrp)
         twistJnts.append(dupe)
