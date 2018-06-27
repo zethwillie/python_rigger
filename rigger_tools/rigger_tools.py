@@ -511,9 +511,15 @@ def initial_pose_joints(ptsList, baseNames, orientOrder, upOrientAxis, primaryAx
         if i>0:
             oc = cmds.orientConstraint(ctrlHierList[i-1][2], ctrlHierList[i][1], mo=False)[0]
             poseConstraints.append(oc)
+        oc1 = cmds.orientConstraint(joints[i], ctrlHierList[i][4], mo=False)
+        cmds.delete(oc1)
+        const = cmds.parentConstraint(ctrlHierList[i][0], ctrlHierList[i][2], mo=True)[0]
+        poseConstraints.append(const)
+                    
+        if i>0:
             for attr in lockAttrs:
                 cmds.setAttr("{0}.{1}".format(ctrlHierList[i][0], attr), l=True)
-            cmds.setAttr("{0}.t{1}".format(ctrlHierList[i][0], primaryAxis), l=False)                
+            cmds.setAttr("{0}.t{1}".format(ctrlHierList[i][0], primaryAxis), l=False)    
         if i==1:
             # unlock the bend attr
             cmds.setAttr("{0}.rx".format(ctrlHierList[i][0]), l=True)
@@ -526,10 +532,7 @@ def initial_pose_joints(ptsList, baseNames, orientOrder, upOrientAxis, primaryAx
             cmds.setAttr("{0}.tz".format(ctrlHierList[i][0]), l=False)
 
 
-        oc1 = cmds.orientConstraint(joints[i], ctrlHierList[i][4], mo=False)
-        cmds.delete(oc1)
-        const = cmds.parentConstraint(ctrlHierList[i][0], ctrlHierList[i][2], mo=True)[0]
-        poseConstraints.append(const)
+
 
     parent_hierarchy_grouped_controls(poseCtrls, poseGrps)
 

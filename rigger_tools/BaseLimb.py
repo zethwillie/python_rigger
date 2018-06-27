@@ -294,7 +294,7 @@ class BaseLimb(object):
             if side == "mir":
                 sideName = self.mirPrefix
 
-            self.upMult, self.loMult = zrt.create_stretch_setup(self.measureJoints[side], self.ikCtrls[side][0], "{0}_{1}".format(sideName, self.part))
+            self.upMult, self.loMult = zrt.create_stretch_setup(self.measureJoints[side][:3], self.ikCtrls[side][0], "{0}_{1}".format(sideName, self.part))
         # should do twist stuff first? Need to add twist joints to ik? or just have a separate twist dict?
             cmds.connectAttr("{0}.output.outputX".format(self.upMult), "{0}.sx".format(self.ikJoints[side][0]))
             cmds.connectAttr("{0}.output.outputX".format(self.loMult), "{0}.sx".format(self.ikJoints[side][1]))
