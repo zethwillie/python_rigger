@@ -40,7 +40,7 @@ class LegRig(BL.BaseLimb):
         self.revFootPts = [(5, 1, 3), (5, 0, 4), (5, 0, -2)]
 
         self.revFootNames = ["ball", "toe", "heel"]
-        self.revFootLocs = []
+        self.revFootLocs = {"orig":[], "mir":[]}
         self.footPivots = {}
         self.ikShape = "box"
         self.ikOrient = False
@@ -53,7 +53,7 @@ class LegRig(BL.BaseLimb):
         for i in range(len(self.revFootNames)):
             loc = cmds.spaceLocator(name="{0}_LOC".format(self.revFootNames[i]))[0]
             cmds.xform(loc, ws=True, t=self.revFootPts[i])
-            self.revFootLocs.append(loc)
+            self.revFootLocs["orig"].append(loc)
         #cmds.parent(self.revFootLocs[0], self.joints[2])
         #cmds.parent(self.revFootLocs[1:], self.revFootLocs[0])
 
@@ -80,9 +80,20 @@ class LegRig(BL.BaseLimb):
 
 
     def create_reverse_foot(self):
+        mirrorScale = (1, 1, 1)
         if self.mirror:
-# reverse the locators . . . 
-            pass
+            if self.mirrorAxis == "yz":
+                mirrorScale = (-1, 1, 1)
+            elif self.mirrorAxis == "xy":
+                mirrorScale = (1, 1, -1)
+            elif self.mirrorAxis == "xz":
+                mirrorScale = (1, -1, 1)
+            for loc in self.revFootLocs["orig"]:
+                cmds.xform(loc, ws=True, sp=(0, 0, 0))
+                dupe = cmds.duplicate(loc)[0]
+                cmds.xform(dupe, s=mirrorScale)
+                self.revFootLocs["mir"].append(dupe)
+
         for side in self.fkJoints.keys():
             if side == "orig":
                 sideName = self.origPrefix
@@ -95,19 +106,17 @@ class LegRig(BL.BaseLimb):
             cmds.setAttr("{0}.__RevFootAttrs__".format(self.ikCtrls[side][0]), l=True)
             rollAttrs = ["ballRoll", "toeRoll","heelRoll"]
             twistAttrs = ["ballTwist", "toeTwist", "heelTwist"]
-
             for attr in rollAttrs:
                 cmds.addAttr(self.ikCtrls[side][0], ln=attr, at="float", dv=0.0, k=True)
             for attr in twistAttrs:
                 cmds.addAttr(self.ikCtrls[side][0], ln=attr, at="float", dv=0.0, k=True)
             cmds.addAttr(self.ikCtrls[side][0], ln="toeFlap", at="float", dv=0.0, k=True)
-            # create grp for each loc
-# got to reverse this for each side!!
-            for loc in self.revFootLocs:
-                grp = cmds.group(em=True, name="{0}_{1}_{2}".format(sideName, self.part, loc.replace("LOC", "PIV")))
-                pos = cmds.xform(loc, q=True, ws=True, rp=True)
-                cmds.xform(grp, ws=True, t=pos)
 
+            # create grp for each loc
+            for loc in self.revFootLocs[side]:
+                grp = cmds.group(em=True, name="{0}_{1}_{2}".format(sideName, self.part, loc.replace("LOC", "PIV")))
+                pos = cmds.pointPosition(loc)
+                cmds.xform(grp, ws=True, t=pos)
                 self.footPivots[side].append(grp)
 
             # parent ball to toe, toe to heel, heel to to ctrl
@@ -125,6 +134,7 @@ class LegRig(BL.BaseLimb):
             cmds.setAttr("{0}.visibility".format(ballHandle), 0)
             # create ctrl at ball, grpFreeze, orient constrain ikBall to this
             ballCtrl, ballGrp = zrt.create_control_at_joint(self.ikJoints[side][3], "circle", "x", "{0}_ball_{1}".format(sideName, self.ctrlSuffix), self.groupSuffix, orient=True)
+            cmds.setAttr("{0}.v".format(ballCtrl), 0)
             self.reverseFootBallCtrls[side] = ballCtrl
             cmds.parent(ballGrp, self.footPivots[side][1])
             # connect attrs
@@ -133,6 +143,11 @@ class LegRig(BL.BaseLimb):
                 cmds.connectAttr("{0}.{1}".format(self.ikCtrls[side][0], twistAttrs[i]), "{0}.ry".format(self.footPivots[side][i]))
             cmds.connectAttr("{0}.toeFlap".format(self.ikCtrls[side][0]), "{0}.rz".format(self.reverseFootBallCtrls[side]))
             # delete pv locs
-            cmds.delete(self.revFootLocs)
+            cmds.delete(self.revFootLocs[side])
 
             # connect pv to foot, follow attr etc
+
+    def clean_up_rig(self):
+        BL.BaseLimb.clean_up_rig(self)
+        for side in self.fkJoints.keys():
+            cmds.setAttr("{0}.fkik".format(self.switchCtrls[side]), 1)

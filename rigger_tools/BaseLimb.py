@@ -7,6 +7,9 @@ import maya.OpenMaya as om
 import python_rigger.rigger_tools.rigger_window as zrw
 reload(zrw)
 
+# for sides create a list w "orig", if mirror add "mir", replace all self.fkJoints.keys(), etc. . 
+# also create self.sideName with orig and mir prefixes. . . ?
+
 
 class BaseLimbUI(zrw.RiggerWindow):
     def __init__(self):
@@ -216,7 +219,7 @@ class BaseLimb(object):
             cmds.xform(grp, ws=True, t=(mv.x, mv.y, mv.z))
             
             rig.stripTransforms(ctrl)
-            cmds.addAttr(ctrl, ln="fkik", at="float", min=0.0, max=1.0, defaultValue=0.0, keyable=True)
+            cmds.addAttr(ctrl, ln="fkik", at="float", min=0.0, max=1.0, defaultValue=0, keyable=True)
 
         # save this constraint?
             pc = cmds.parentConstraint(self.deformJoints[side][2], grp, mo=True)
@@ -394,11 +397,11 @@ class BaseLimb(object):
         # color controls
             #how to do this? color attr from UI? 
             if side == "orig":
-                color = "red"
-                secColor = "pink"
-            if side == "mir":
                 color = "blue"
                 secColor = "lightBlue"
+            if side == "mir":
+                color = "red"
+                secColor = "pink"
 
             primColor = [self.fkCtrls[side], [self.ikCtrls[side][0]]]
             lightColor = [self.ikCtrls[side][1:], [self.switchCtrls[side]]]
