@@ -153,8 +153,9 @@ def create_reverse_network(name,  inputAttr, revAttr, targetAttr,):
     return(reverse)
 
 
-def create_control_at_joint(jnt, ctrlType, axis, name, grpSuffix="GRP"):
-    """orient will create a new control UNDER the ctrl that we can use to  orient pose joints
+def create_control_at_joint(jnt, ctrlType, axis, name, grpSuffix="GRP", orient=True):
+    """
+        orient is whether we should rotate/orient ctrl to jnt or leave in world rotation
         NAME  is full name including "ctrl"
     """
     ctrl = rig.createControl(name, ctrlType, axis)
@@ -162,8 +163,11 @@ def create_control_at_joint(jnt, ctrlType, axis, name, grpSuffix="GRP"):
     rotOrder = cmds.xform(jnt, q=True, roo=True)
     cmds.xform(ctrl, roo=rotOrder)
     cmds.xform(grp, roo=rotOrder)
-    rig.snapTo(jnt, grp)
-
+    if orient:
+        rig.snapTo(jnt, grp)
+    else:
+        pos = cmds.xform(jnt, q=True, ws=True, rp=True)
+        cmds.xform(grp, ws=True, t=pos)
     return(ctrl, grp)
 
 
@@ -515,7 +519,7 @@ def initial_pose_joints(ptsList, baseNames, orientOrder, upOrientAxis, primaryAx
         cmds.delete(oc1)
         const = cmds.parentConstraint(ctrlHierList[i][0], ctrlHierList[i][2], mo=True)[0]
         poseConstraints.append(const)
-                    
+
         if i>0:
             for attr in lockAttrs:
                 cmds.setAttr("{0}.{1}".format(ctrlHierList[i][0], attr), l=True)
@@ -587,7 +591,3 @@ def create_rotate_order_attr(obj, attrName):
 
 # -- arm 
 # hand stuff
-
-# -- leg
-# deal wtih orienting ik handle
-# reverse foot stuff (locators, etc)

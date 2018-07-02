@@ -22,6 +22,8 @@ class BaseLimbUI(zrw.RiggerWindow):
         self.pts = [(5,20, 0),(15, 20, -1), (25, 20, 0), (27, 20, 0)]
         self.baseNames = ["limb1", "limb2", "limb3", "limb4"]
         self.secRotOrderJnts = [2]
+        self.ikShape = "arrowCross"
+        self.ikOrient = True
         self.make_UI()
 
     def create_rigger(self, *args):
@@ -61,7 +63,8 @@ class BaseLimb(object):
         self.twistNum = 2           # how many (doesn't include top/bottom)?
         self.secRotOrder = "zyx"  # the 'other' rotation order (ie. for wrists, etc)
         self.secRotOrderJnts = [2]   # which joints get the secRotOrder. This is a list of the indices
-
+        self.ikShape = "arrowCross"  # shape for createControl of ikCtrl
+        self.ikOrient = True            # should we orient the ikctrl to the jnt?
 
         # initialize variables
         self.side = {}
@@ -141,6 +144,7 @@ class BaseLimb(object):
         self.ikCtrlGrps["orig"] = None
         self.sideGroups["orig"] = None
         self.twistJoints["orig"] = []
+        self.ikHandles["orig"] = []
         if self.mirror:
             self.side["mir"] = self.mirPrefix
             self.fkJoints["mir"] = self.mirrorFkJnts
@@ -151,6 +155,7 @@ class BaseLimb(object):
             self.ikCtrlGrps["mir"] = None  # [ikCtrlGrp, pvCtrlGrp, pvLineGrp]
             self.sideGroups["mir"] = None   # [lf_arm_GRP, lf_arm_attach_GRP]
             self.twistJoints["mir"] = []   # [lf_arm_upTwist1_JNT, etc]
+            self.ikHandles["mir"] = []      #[lf_leg_ikHandle, lf_ball_ikHandle]
 
 
     def create_duplicate_chains(self):
@@ -229,11 +234,12 @@ class BaseLimb(object):
 
             handle = cmds.ikHandle(startJoint=jnts[0], endEffector=jnts[2], name=name, solver="ikRPsolver")[0]
             cmds.setAttr("{0}.visibility".format(handle), 0)
-            ctrl, grp = zrt.create_control_at_joint(jnts[2], "arrowCross", self.primaryAxis, "{0}_{1}".format(name, self.ctrlSuffix), grpSuffix=self.groupSuffix)
+            ctrl, grp = zrt.create_control_at_joint(jnts[2], self.ikShape, self.primaryAxis, "{0}_{1}".format(name, self.ctrlSuffix), grpSuffix=self.groupSuffix, orient=self.ikOrient)
             cmds.parent(handle, ctrl)
             oc = cmds.orientConstraint(ctrl, jnts[2], mo=True)
             self.ikCtrls[side] = [ctrl]
-            self.ikCtrlGrps[side] = [grp] 
+            self.ikCtrlGrps[side] = [grp]
+            self.ikHandles[side].append(handle)
         # scale the control
 
     # extract the pole Vector bits to riggerTools
@@ -351,6 +357,8 @@ class BaseLimb(object):
         ikName = "ik_world_rig_GRP"
         if not cmds.objExists(ikName):
             ikGrp = cmds.group(em=True, name=ikName)
+        else:
+            ikGrp = ikName
 
         for side in self.fkJoints.keys():
             if side == "orig":
@@ -380,6 +388,7 @@ class BaseLimb(object):
             if not cmds.objExists("rig_noInherit_GRP".format(self.groupSuffix)):
                 noInher = cmds.group(em=True, name="rig_noInherit_GRP")
                 cmds.setAttr("{0}.inheritsTransform".format(noInher), 0)
+            noInher = "rig_noInherit_GRP"
             cmds.parent(self.ikCtrlGrps[side][2], noInher)
         
         # color controls
