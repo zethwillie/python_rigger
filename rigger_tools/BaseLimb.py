@@ -7,8 +7,9 @@ import maya.OpenMaya as om
 import python_rigger.rigger_tools.rigger_window as zrw
 reload(zrw)
 
-# for sides create a list w "orig", if mirror add "mir", replace all self.fkJoints.keys(), etc. . 
-# also create self.sideName with orig and mir prefixes. . . ?
+#----------------# for sides create a list w "orig", if mirror add "mir", replace all self.fkJoints.keys(), etc. . 
+#---------------- also create self.sideName with orig and mir prefixes. . . ?
+#---------------- add meta data setup. . . network nodes with message multi attrs
 
 
 class BaseLimbUI(zrw.RiggerWindow):
@@ -69,6 +70,8 @@ class BaseLimb(object):
         self.ikShape = "arrowCross"  # shape for createControl of ikCtrl
         self.ikOrient = True            # should we orient the ikctrl to the jnt?
 
+# deal with joint labeling (cmds.setAttr("joint.side", 1)), left =1, right=2, center=0, None=3
+
         # initialize variables
         self.side = {}
         self.fkJoints = {}
@@ -83,8 +86,6 @@ class BaseLimb(object):
         self.switchCtrls = {}
         self.twistJoints = {}
         self.sideGroups = {}
-
-# a control on the switch that can drive the rotation order of all the things for each "part" (shldr, elbow, etc-->xyz changes all of the parts of that rig)
 
 
     def pose_initial_joints(self):
@@ -119,6 +120,7 @@ class BaseLimb(object):
         self.create_ik_group()
         self.clean_up_rig()
         self.create_sets()
+        self.label_deform_joints()
 
 
     def clean_initial_joints(self):
@@ -228,6 +230,7 @@ class BaseLimb(object):
 
 
     def create_ik_rig(self):
+
         for side in self.ikJoints.keys():
             jnts = self.ikJoints[side]
             if side == "orig":
@@ -267,7 +270,7 @@ class BaseLimb(object):
                 pvline = "{0}_{1}_poleVec_Line".format(self.origPrefix, self.part)
             elif side == "mir":
                 pvline = "{0}_{1}_poleVec_Line".format(self.mirPrefix, self.part)        
-            pvLine = zrt.create_line_between(pv, jnts[1], "{0}".format(pvline))
+            pvLine = zrt.create_line_between(pv, jnts[1], pvline)
             pvGrp = cmds.group(em=True, name="{0}_{1}".format(pvLine, self.groupSuffix))
             cmds.parent(pvLine, pvGrp)
             self.ikCtrls[side].append(pvLine)
@@ -277,8 +280,8 @@ class BaseLimb(object):
             cmds.setAttr("{0}.overrideEnabled".format(shp), 1)
             cmds.setAttr("{0}.overrideDisplayType".format(shp), 2)
             #connect to switch
-            cmds.addAttr(self.switchCtrls[side], ln="poleVecLine", at="short", min=0, max=1, dv=1, k=True)
-            cmds.connectAttr("{0}.poleVecLine".format(self.switchCtrls[side]), "{0}.overrideVisibility".format(shp))
+            cmds.addAttr(self.switchCtrls[side], ln="poleVecLineVis", at="short", min=0, max=1, dv=1, k=True)
+            cmds.connectAttr("{0}.poleVecLineVis".format(self.switchCtrls[side]), "{0}.overrideVisibility".format(shp))
         # option for no flip pv?
         # option to create follow spaces? (pv follow ik ctrl)
 
@@ -304,7 +307,15 @@ class BaseLimb(object):
                 sideName = self.mirPrefix
 
             self.upMult, self.loMult = zrt.create_stretch_setup(self.measureJoints[side][:3], self.ikCtrls[side][0], "{0}_{1}".format(sideName, self.part))
-        # should do twist stuff first? Need to add twist joints to ik? or just have a separate twist dict?
+
+            cmds.addAttr(self.switchCtrls[side], ln="upperLength", at="float", k=False)
+            cmds.addAttr(self.switchCtrls[side], ln="lowerLength", at="float", k=False)
+
+            cmds.connectAttr("{0}_{1}_measure0_DB.distance".format(sideName, self.part), "{0}.upperLength".format(self.switchCtrls[side]))
+            cmds.connectAttr("{0}_{1}_measure1_DB.distance".format(sideName, self.part), "{0}.lowerLength".format(self.switchCtrls[side]))
+            cmds.setAttr("{0}.upperLength".format(self.switchCtrls[side]), l=True)
+            cmds.setAttr("{0}.lowerLength".format(self.switchCtrls[side]), l=True)
+
             cmds.connectAttr("{0}.output.outputX".format(self.upMult), "{0}.sx".format(self.ikJoints[side][0]))
             cmds.connectAttr("{0}.output.outputX".format(self.loMult), "{0}.sx".format(self.ikJoints[side][1]))
 
@@ -350,13 +361,11 @@ class BaseLimb(object):
             for jnt in twistJointsLo:
                 self.twistJoints[side].append(jnt)
 
+        # add locator at actual elbow that is parent of other two?
 
-        # add locator at actual elbow that is parent of other two
 
-    # add attr for switch ctrl to drive the rot orders of each part (all the ctrls and joints)
-
-    # package up cmponents, color controls, hide jnts, etc
     def create_ik_group(self):
+    # package up cmponents, color controls, hide jnts, etc
         ikName = "ik_world_rig_GRP"
         if not cmds.objExists(ikName):
             ikGrp = cmds.group(em=True, name=ikName)
@@ -446,6 +455,29 @@ class BaseLimb(object):
                 else:
                     roindex = roList.index(origRotOrder)
                     cmds.setAttr(roattr, roindex)
+
+# strip to rotate adn translates. . . . 
+
+
+    def label_deform_joints(self):
+        for side in self.fkJoints.keys():
+            jointType = 18
+            if side == "orig":
+                sideNum = 1
+            if side == "mir":
+                sideNum = 2
+
+            for jnt in self.deformJoints[side]:
+                joint = jnt.split("_")[1]
+                cmds.setAttr("{0}.side".format(jnt), sideNum)
+                cmds.setAttr("{0}.type".format(jnt), jointType)
+                cmds.setAttr("{0}.otherType".format(jnt), joint, type="string")
+
+            for jnt in self.twistJoints[side]:
+                joint = "_".join(jnt.split("_")[2:4])
+                cmds.setAttr("{0}.side".format(jnt), sideNum)
+                cmds.setAttr("{0}.type".format(jnt), jointType)
+                cmds.setAttr("{0}.otherType".format(jnt), joint, type="string")
 
 
     def create_sets(self):

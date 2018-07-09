@@ -421,7 +421,7 @@ def create_twist_extractor(rotJnt, tgtCtrl, parObj, tgtAttr=None):
 
     attrTest = cmds.attributeQuery(tgtAttr, node=tgtCtrl, exists=True)
     if not attrTest:
-        cmds.addAttr(tgtCtrl, ln=tgtAttr, at="float", dv=0, k=True)
+        cmds.addAttr(tgtCtrl, ln=tgtAttr, at="float", dv=0, k=False)
 
     cmds.connectAttr("{0}.outputRotate.outputRotateX".format(qte), "{0}.{1}".format(tgtCtrl, tgtAttr))
     cmds.setAttr("{0}.{1}".format(tgtCtrl, tgtAttr), l=True)

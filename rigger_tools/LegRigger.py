@@ -77,7 +77,7 @@ class LegRig(BL.BaseLimb):
         self.create_reverse_foot()
         self.clean_up_rig()
         self.create_sets()
-
+        self.label_deform_joints()
 
     def create_reverse_foot(self):
         mirrorScale = (1, 1, 1)
