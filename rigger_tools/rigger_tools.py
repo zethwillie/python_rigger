@@ -158,13 +158,13 @@ def create_control_at_joint(jnt, ctrlType, axis, name, grpSuffix="GRP", orient=T
         orient is whether we should rotate/orient ctrl to jnt or leave in world rotation
         NAME  is full name including "ctrl"
     """
-    ctrl = rig.createControl(name, ctrlType, axis)
-    grp = rig.groupFreeze(ctrl, grpSuffix)
+    ctrl = rig.create_control(name, ctrlType, axis)
+    grp = rig.group_freeze(ctrl, grpSuffix)
     rotOrder = cmds.xform(jnt, q=True, roo=True)
     cmds.xform(ctrl, roo=rotOrder)
     cmds.xform(grp, roo=rotOrder)
     if orient:
-        rig.snapTo(jnt, grp)
+        rig.snap_to(jnt, grp)
     else:
         pos = cmds.xform(jnt, q=True, ws=True, rp=True)
         cmds.xform(grp, ws=True, t=pos)
@@ -184,18 +184,18 @@ def create_controls_and_orients_at_joints(jntList, ctrlType, axis, suffix, orien
         else:
             name = "{0}_{1}".format(jnt, suffix)
             oname = "{0}_{1}".format(jnt, "ORIENT"+suffix)
-        ctrl = rig.createControl(name, ctrlType, axis)
-        grp = rig.groupFreeze(ctrl)
-        rig.snapTo(jnt, grp)
+        ctrl = rig.create_control(name, ctrlType, axis)
+        grp = rig.group_freeze(ctrl)
+        rig.snap_to(jnt, grp)
         ctrls.append(ctrl)
         groups.append(grp)
         if orient:
-            octrl = rig.createControl(oname, "arrow", upAxis) # FLIP THIS IN AXIS
-            rig.stripToRotate(octrl)
+            octrl = rig.create_control(oname, "arrow", upAxis) # FLIP THIS IN AXIS
+            rig.strip_to_rotate(octrl)
             cmds.setAttr("{0}.ry".format(octrl), l=True)
             cmds.setAttr("{0}.rz".format(octrl), l=True)
-            ogrp = rig.groupFreeze(octrl)
-            rig.snapTo(jnt, ogrp)
+            ogrp = rig.group_freeze(octrl)
+            rig.snap_to(jnt, ogrp)
             cmds.parent(ogrp, ctrl)
             octrls.append(octrl)
             ogrps.append(ogrp)
@@ -449,7 +449,7 @@ def create_twist_joints(numJnts, rotJnt, parentJnt, childJnt, twistAttr, baseNam
     for i in range(num):
         dupe = cmds.duplicate(parentJnt, parentOnly=True, name="{0}_twist{1}_{2}".format(baseName, i, jntSuffix))[0]
         dupeGrp = cmds.group(em=True, name="{0}_twist{1}_{2}".format(baseName, i, grpSuffix))
-        rig.snapTo(dupe, dupeGrp)
+        rig.snap_to(dupe, dupeGrp)
         cmds.parent(dupe, dupeGrp)
         twistJnts.append(dupe)
         cmds.parent(dupeGrp, parentJnt)

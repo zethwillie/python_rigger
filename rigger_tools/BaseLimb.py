@@ -208,8 +208,8 @@ class BaseLimb(object):
     def create_fkik_switch(self):
         for side in self.deformJoints.keys():
             # this defaults to the third joint in chain
-            ctrl = rig.createControl(name="{0}_{1}_IkFkSwitch_{2}".format(self.side[side], self.part, self.ctrlSuffix), type="star", axis=self.primaryAxis)
-            grp = rig.groupFreeze(ctrl, self.groupSuffix)
+            ctrl = rig.create_control(name="{0}_{1}_IkFkSwitch_{2}".format(self.side[side], self.part, self.ctrlSuffix), type="star", axis=self.primaryAxis)
+            grp = rig.group_freeze(ctrl, self.groupSuffix)
         #get scale factor
             root = cmds.xform(self.deformJoints[side][0], q=True, ws=True, rp=True)
             mid = cmds.xform(self.deformJoints[side][1], q=True, ws=True, rp=True)
@@ -217,10 +217,10 @@ class BaseLimb(object):
             distVec = om.MVector(mid[0]-end[0], mid[1]-end[1], mid[2]-end[2])
             dist = distVec.length()
             mv = zrt.get_planar_position(root, mid, end, percent=0.05, dist=dist)
-            rig.snapTo(self.deformJoints[side][2], grp)
+            rig.snap_to(self.deformJoints[side][2], grp)
             cmds.xform(grp, ws=True, t=(mv.x, mv.y, mv.z))
             
-            rig.stripTransforms(ctrl)
+            rig.strip_transforms(ctrl)
             cmds.addAttr(ctrl, ln="fkik", at="float", min=0.0, max=1.0, defaultValue=0, keyable=True)
 
         # save this constraint?
@@ -254,9 +254,9 @@ class BaseLimb(object):
                 pvname = "{0}_{1}_poleVector_{2}".format(self.origPrefix, self.part, self.ctrlSuffix)
             elif side == "mir":
                 pvname = "{0}_{1}_poleVector_{2}".format(self.mirPrefix, self.part, self.ctrlSuffix)
-            pv = rig.createControl(name=pvname, type="sphere", color="red", axis="x")
+            pv = rig.create_control(name=pvname, type="sphere", color="red", axis="x")
             self.ikCtrls[side].append(pv)
-            pvgrp = rig.groupFreeze(pv, suffix=self.groupSuffix)
+            pvgrp = rig.group_freeze(pv, suffix=self.groupSuffix)
             self.ikCtrlGrps[side].append(pvgrp)
 
             # place and constrain pole vec
@@ -417,10 +417,10 @@ class BaseLimb(object):
 
             for obj in primColor:
                 for ctrl in obj: 
-                    rig.assignColor(obj=ctrl, clr=color)
+                    rig.assign_color(obj=ctrl, clr=color)
             for obj in lightColor:
                 for ctrl in obj:
-                    rig.assignColor(obj=ctrl, clr=secColor)
+                    rig.assign_color(obj=ctrl, clr=secColor)
 
         # set up visibility switching
             ikStuff = [self.ikCtrlGrps[side][0], self.ikCtrlGrps[side][1], self.ikCtrlGrps[side][2]]
